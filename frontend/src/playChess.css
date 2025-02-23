@@ -48,38 +48,99 @@
   display: flex;
   justify-content: center;
   align-items: center;
+  backdrop-filter: blur(5px); /* Soft blur effect */
 }
 
 .modal-content {
-  background: #a3b1c2; /* Matches dark chessboard squares */
-  padding: 2rem;
-  border-radius: 8px;
+  font-family: 'Poppins', sans-serif;
+  background: rgba(163, 177, 194, 0.9); /* Keeping original color with transparency */
+  padding: 2.5rem;
+  border-radius: 12px;
   text-align: center;
-  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+  box-shadow: 0px 6px 20px rgba(0, 0, 0, 0.3);
   color: rgb(58, 58, 58);
+  width: 40%;
+  max-width: 500px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.modal-content h2 {
-  font-size: 1.8rem;
+/* Ensuring Proper Input Spacing */
+.modal-inputs-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.modal-input {
+  font-size: 1.3rem;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Name input styling */
+.name-input {
+  width: 85%;
+  font-size: 1.2rem;
+  text-align: center;
+  padding: 0.6rem;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  color: rgb(58, 58, 58);
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.name-input:focus {
+  border-color: #4caf50;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Time Input Styling */
+.modal-time-input {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.8rem;
 }
 
 .time-input {
-  width: 60px;
-  font-size: 1.5rem;
+  width: 55px;
+  font-size: 1.1rem;
   text-align: center;
-  margin: 1rem 0;
-  border: none;
-  border-radius: 4px;
-  padding: 0.3rem;
+  padding: 0.5rem;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  color: rgb(58, 58, 58);
+  outline: none;
+  transition: all 0.3s ease;
 }
 
-.confirm-button, .cancel-button {
-  padding: 0.5rem 1rem;
+.time-input:focus {
+  border-color: #4caf50;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Button Styles */
+.confirm-button,
+.cancel-button {
+  padding: 0.8rem 1.5rem;
   margin: 0.5rem;
   border: none;
   cursor: pointer;
   font-weight: bold;
-  border-radius: 5px;
+  border-radius: 8px;
+  font-size: 1.2rem;
+  transition: all 0.3s ease;
 }
 
 .confirm-button {
@@ -94,8 +155,12 @@
 
 .confirm-button:hover {
   background-color: #388e3c;
+  transform: translateY(-2px);
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
 }
 
 .cancel-button:hover {
   background-color: #d32f2f;
+  transform: translateY(-2px);
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
 }

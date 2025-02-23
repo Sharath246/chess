@@ -10,9 +10,9 @@ export default function Chessboard() {
   const [turn, setTurn] = useState(true);
   const [selectedIndex, setSelectedIndex] = useState([-1, -1]);
   const movesEndRef = useRef<HTMLDivElement | null>(null);
-  let { time } = useParams();
-  const [timer1, setTimer1] = useState<number>(Number(time));
-  const [timer2, setTimer2] = useState<number>(Number(time));
+  let { player1, player2, time } = useParams();
+  const [timer1, setTimer1] = useState<number>(Number(time) * 2);
+  const [timer2, setTimer2] = useState<number>(Number(time) * 2);
   const [moves, setMoves] = useState<string[][]>([]);
   const [showPromotionModal, setShowPromotionModal] = useState(false);
   const [promotionPiece, setPromotionPiece] = useState(" ");
@@ -32,7 +32,6 @@ export default function Chessboard() {
       newGrid[6][i] = "P";
     }
     setGrid(newGrid);
-    countDown();
   }, []);
 
   useEffect(() => {}, [selectedIndex, grid]);
@@ -42,24 +41,28 @@ export default function Chessboard() {
     }
   }, [moves]);
 
-  function countDown() {
+  useEffect(() => {
     if (!time || Number.isNaN(time)) return;
-    if (timer1 === 0 || timer2 === 0) return;
-    setTimeout(() => {
-      if (turn) {
-        setTimer1((prev) => {
-          if (prev > 0) return prev - 1;
-          return prev;
-        });
-      } else {
-        setTimer2((prev) => {
-          if (prev > 0) return prev - 1;
-          return prev;
-        });
-      }
-      countDown();
+    if( timer1 === 0 || timer2 === 0)
+    {
+      if(timer1 === 0)
+      alert(`Time Up!! ${player2} won the game`);
+      else
+      alert(`Time Up!! ${player1} won the game`);
+    }
+    const interval = setInterval(() => {
+      setTurn((prevTurn) => {
+        if (prevTurn) {
+          setTimer1((prev) => Math.max(0, prev - 1));
+        } else {
+          setTimer2((prev) => Math.max(0, prev - 1));
+        }
+        return prevTurn;
+      });
     }, 1000);
-  }
+
+    return () => clearInterval(interval);
+  }, []);
 
   function checkcheck(grid: string[][], x: number, y: number) {
     function diagonal() {
@@ -846,19 +849,25 @@ export default function Chessboard() {
       )}
       <div className="chess-container">
         <div className="chess-players">
-          <div className="player">
-            Player2{" "}
+          <div className={(turn===false) + "-player"}>
+            {player2}
             {timer2 !== null &&
               !Number.isNaN(timer2) &&
               timer2 !== 0 &&
-              ":" + timer2}
+              " - " +
+                `${Math.floor(timer2 / 120)}:${
+                  Math.floor(((timer2 / 2) % 60) / 10) === 0 ? "0" : ""
+                }${(timer2 / 2) % 60}`}
           </div>
-          <div className="player">
-            Player1{" "}
+          <div className={turn  + "-player"}>
+            {player1}
             {timer1 !== null &&
               !Number.isNaN(timer1) &&
               timer2 !== 0 &&
-              ":" + timer1}
+              " - " +
+                `${Math.floor(timer1 / 120)}:${
+                  Math.floor(((timer1 / 2) % 60) / 10) === 0 ? "0" : ""
+                }${(timer1 / 2) % 60}`}
           </div>
         </div>
         <div className="grid-container">

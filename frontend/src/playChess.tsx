@@ -1,16 +1,29 @@
-import React from "react";
-import { useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import './playChess.css'
+import "./playChess.css";
 
 export default function Home() {
   const [showModal, setShowModal] = useState(false);
-  const [time, setTime] = useState(5);
+  const [hours, setHours] = useState("0");
+  const [minutes, setMinutes] = useState("5");
+  const [seconds, setSeconds] = useState("0");
+  const [player1, setPlayer1] = useState("Player1");
+  const [player2, setPlayer2] = useState("Player2");
   const navigate = useNavigate();
 
-  const handleStartGame = (time:number) => {
+  // Function to handle input validation (allow only 2 digits)
+  const handleTimeInput = (value, setter, max) => {
+    if (/^\d{0,2}$/.test(value) && Number(value) <= max) {
+      setter(value);
+    }
+  };
+
+  const handleStartGame = (noTimeLimit = false) => {
+    let totalTime = noTimeLimit
+      ? 0
+      : Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds);
     setShowModal(false);
-    navigate(`/friend/${time*60}`);
+    navigate(`/friend/${player1}/${player2}/${totalTime}`);
   };
 
   return (
@@ -20,11 +33,7 @@ export default function Home() {
         <button className="home-button" onClick={() => setShowModal(true)}>
           Play with Friend
         </button>
-        <button
-          disabled={true}
-          className="home-button"
-          onClick={() => navigate("/game/computer")}
-        >
+        <button disabled={true} className="home-button">
           Play with Computer
         </button>
       </div>
@@ -32,18 +41,76 @@ export default function Home() {
       {showModal && (
         <div className="modal-overlay">
           <div className="modal-content">
-            <h2>Set Game Time</h2>
-            <input
-              type="number"
-              min="1"
-              value={time}
-              onChange={(e) => setTime(Number(e.target.value))}
-              className="time-input"
-            />
-            <button className="confirm-button" onClick={()=>{handleStartGame(time)}}>
+            <div className="modal-inputs-container">
+              <div className="modal-input">
+                White
+                <input
+                  type="text"
+                  maxLength={10}
+                  value={player1}
+                  onChange={(e) => setPlayer1(e.target.value)}
+                  className="name-input"
+                />
+              </div>
+              <div className="modal-input">
+                Black
+                <input
+                  type="text"
+                  maxLength={10}
+                  value={player2}
+                  onChange={(e) => setPlayer2(e.target.value)}
+                  className="name-input"
+                />
+              </div>
+              <div className="modal-input">
+                Time
+                <div className="modal-time-input">
+                  HH
+                  <input
+                    type="text"
+                    placeholder="HH"
+                    value={hours}
+                    maxLength={2}
+                    onChange={(e) =>
+                      handleTimeInput(e.target.value, setHours, 23)
+                    }
+                    className="time-input"
+                  />
+                  MM
+                  <input
+                    type="text"
+                    placeholder="MM"
+                    value={minutes}
+                    maxLength={2}
+                    onChange={(e) =>
+                      handleTimeInput(e.target.value, setMinutes, 59)
+                    }
+                    className="time-input"
+                  />
+                  SS
+                  <input
+                    type="text"
+                    placeholder="SS"
+                    value={seconds}
+                    maxLength={2}
+                    onChange={(e) =>
+                      handleTimeInput(e.target.value, setSeconds, 59)
+                    }
+                    className="time-input"
+                  />
+                </div>
+              </div>
+            </div>
+            <button
+              className="confirm-button"
+              onClick={() => handleStartGame()}
+            >
               Start Game
             </button>
-            <button className="confirm-button" onClick={()=>{handleStartGame(0)}}>
+            <button
+              className="confirm-button"
+              onClick={() => handleStartGame(true)}
+            >
               No Time Limit
             </button>
             <button
