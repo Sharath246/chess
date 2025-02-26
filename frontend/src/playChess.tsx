@@ -36,6 +36,9 @@ export default function Home() {
         <button disabled={true} className="home-button">
           Play with Computer
         </button>
+        <button className="home-button" onClick={() => navigate('/online')}>
+          Play Online
+        </button>
       </div>
 
       {showModal && (

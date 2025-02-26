@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import "./chessboard.css";
 import { Square } from "./Square.tsx";
-import { useParams } from "react-router-dom";
 import {
   whitePieces,
   blackPieces,
@@ -17,11 +16,15 @@ import {
   moveFunction,
 } from "./chessFunctions.ts";
 
-export default function Chessboard() {
+export default function OnlineGame() {
   const [turn, setTurn] = useState(true);
+  const [loading,setLoading] = useState(true);
   const [selectedIndex, setSelectedIndex] = useState([-1, -1]);
   const movesEndRef = useRef<HTMLDivElement | null>(null);
-  let { player1, player2, time } = useParams();
+  const websocketRef = useRef<WebSocket | null>(null);
+  let player1 = "Player1",
+    player2 = "Player2",
+    time = 3600;
   const [timer1, setTimer1] = useState<number>(Number(time) * 2);
   const [timer2, setTimer2] = useState<number>(Number(time) * 2);
   const [moves, setMoves] = useState<string[][]>([]);
@@ -29,9 +32,62 @@ export default function Chessboard() {
   const [promotionPiece, setPromotionPiece] = useState(" ");
   const [promotionRow, setPromotionRow] = useState(-1);
   const [promotionCol, setPromotionCol] = useState(-1);
+  const [player, setPlayer] = useState(true);
   const [grid, setGrid] = useState<string[][]>(
     Array.from({ length: 8 }, () => Array(8).fill(" "))
   );
+
+  function rotate180(grid) {
+    return grid.map((row) => [...row].reverse()).reverse();
+  }
+
+  function receive_data(data: string) {
+    console.log(data);
+    if (data === "white") setPlayer(true);
+    else if (data !== "connection accepted") {
+      let newGrid = Array.from({ length: 8 }, (_, i) =>
+        data.slice(i * 8, (i + 1) * 8).split("")
+      );
+      if (!player)
+        newGrid = rotate180(newGrid);
+      setTurn(!turn);
+      setGrid(newGrid);
+    }
+  }
+
+  function sendMessage(grid) {
+    websocketRef.current?.send(grid.flat().join(""));
+  }
+
+  useEffect(() => {
+    if (websocketRef.current) return;
+
+    const randInteger = Math.floor(Math.random() * 10000);
+    const websocket = new WebSocket(
+      `ws://127.0.0.1:9000/play-game?client_id=${randInteger}`
+    );
+    websocketRef.current = websocket;
+
+    async function waitForConnectionAndMessage() {
+      return new Promise<void>((resolve) => {
+        websocket.onopen = () => {};
+        websocket.onmessage = (event) => {
+          receive_data(event.data);
+          websocket.onmessage = (event) => {
+            receive_data(event.data);
+            resolve();
+          };
+        };
+      });
+    }
+
+    async function initializeConnection() {
+      await waitForConnectionAndMessage();
+      setLoading(false);
+    }
+
+    initializeConnection();
+  }, []);
 
   useEffect(() => {
     let newGrid = Array.from({ length: 8 }, () => Array(8).fill(" "));
@@ -43,7 +99,7 @@ export default function Chessboard() {
       newGrid[1][i] = "p";
       newGrid[6][i] = "P";
     }
-    setGrid(newGrid);
+    setGrid(rotate180(newGrid));
   }, []);
 
   useEffect(() => {
@@ -156,6 +212,7 @@ export default function Chessboard() {
           setTurn
         )
       );
+      sendMessage(newGrid);
     }
     setGrid(newGrid);
   }
@@ -263,3 +320,4 @@ function Move({ number, Wmove, Bmove }) {
     </div>
   );
 }
+
