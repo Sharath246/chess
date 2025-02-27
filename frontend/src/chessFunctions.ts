@@ -335,7 +335,7 @@ export function checkCastle(
         let a = moves[i][0];
         if (
           a.startsWith("r") &&
-          (a.endsWith("g1") || a.endsWith("f1") || a[a.length - 1] == "h")
+          (a.endsWith("g1") || a.endsWith("f1") || a[a.length - 1] === "h")
         )
           r2 = 0;
         else if (
@@ -343,7 +343,7 @@ export function checkCastle(
           (a.endsWith("b1") ||
             a.endsWith("c1") ||
             a.endsWith("d1") ||
-            a[a.length - 1] == "a")
+            a[a.length - 1] === "a")
         )
           r1 = 0;
       }
@@ -358,7 +358,7 @@ export function checkCastle(
           for (let i = 2; i <= 4; i++) {
             let tempGrid = structuredClone(grid);
             tempGrid[7][i] = "K";
-            if (i != 4) tempGrid[7][4] = " ";
+            if (i !== 4) tempGrid[7][4] = " ";
             if (checkcheck(tempGrid, 7, i, turn)) {
               r1 = 0;
               break;
@@ -372,7 +372,7 @@ export function checkCastle(
           for (let i = 4; i <= 6; i++) {
             let tempGrid = structuredClone(grid);
             tempGrid[7][i] = "K";
-            if (i != 4) tempGrid[7][4] = " ";
+            if (i !== 4) tempGrid[7][4] = " ";
             if (checkcheck(tempGrid, 7, i, turn)) {
               r2 = 0;
               break;
@@ -397,7 +397,7 @@ export function checkCastle(
         let a = moves[i][1];
         if (
           a.startsWith("r") &&
-          (a.endsWith("e8") || a.endsWith("f8") || a[a.length - 1] == "h")
+          (a.endsWith("e8") || a.endsWith("f8") || a[a.length - 1] === "h")
         )
           r2 = 0;
         else if (
@@ -405,7 +405,7 @@ export function checkCastle(
           (a.endsWith("b8") ||
             a.endsWith("c8") ||
             a.endsWith("d8") ||
-            a[a.length - 1] == "a")
+            a[a.length - 1] === "a")
         )
           r1 = 0;
       }
@@ -420,7 +420,7 @@ export function checkCastle(
           for (let i = 2; i <= 4; i++) {
             let tempGrid = structuredClone(grid);
             tempGrid[0][i] = "k";
-            if (i != 4) tempGrid[0][4] = " ";
+            if (i !== 4) tempGrid[0][4] = " ";
             if (checkcheck(tempGrid, 0, i, turn)) {
               r1 = 0;
               break;
@@ -434,7 +434,7 @@ export function checkCastle(
           for (let i = 4; i <= 6; i++) {
             let tempGrid = structuredClone(grid);
             tempGrid[0][i] = "k";
-            if (i != 4) tempGrid[0][4] = " ";
+            if (i !== 4) tempGrid[0][4] = " ";
             if (checkcheck(tempGrid, 0, i, turn)) {
               r2 = 0;
               break;
@@ -668,8 +668,8 @@ export function moveFunction(
   setPromotionrow: React.Dispatch<React.SetStateAction<number>>,
   setShowPromotionModal: React.Dispatch<React.SetStateAction<boolean>>,
   turn: boolean,
-  moves: string[][],
-  setTurn: React.Dispatch<React.SetStateAction<boolean>>
+  setTurn: React.Dispatch<React.SetStateAction<boolean>>,
+  sendMessage?: (grid: string[][],move:string) => void
 ) {
   if (
     newGrid[selectedIndex[0]][selectedIndex[1]].toLocaleLowerCase() === "p" &&
@@ -695,19 +695,29 @@ export function moveFunction(
         else if (newGrid[i][j][0] === "x") newGrid[i][j] = newGrid[i][j][1];
       }
     }
-    if (turn)
-      setMoves([
-        ...moves,
+    if (turn){
+      setMoves((prev)=>{return [
+        ...prev,
         [String.fromCharCode(col + 97) + (7 - row + 1).toString(), "-"],
-      ]);
-    else
-      setMoves([
-        ...moves.slice(0, moves.length - 1),
+      ]});
+      sendMessage && sendMessage(
+        newGrid,
+        String.fromCharCode(col + 97) + (7 - row + 1).toString()
+      );
+    }
+    else{
+      setMoves((prev)=>{return [
+        ...prev.slice(0, prev.length - 1),
         [
-          moves[moves.length - 1][0],
+          prev[prev.length - 1][0],
           String.fromCharCode(col + 97) + (7 - row + 1).toString(),
         ],
-      ]);
+      ]});
+      sendMessage && sendMessage(
+        newGrid,
+        String.fromCharCode(col + 97) + (7 - row + 1).toString()
+      );
+    }
     setTurn(!turn);
     setSelectedIndex([row, col]);
   } else {
@@ -744,9 +754,9 @@ export function moveFunction(
         }
       }
     }
-    if (turn)
-      setMoves([
-        ...moves,
+    if (turn){
+      setMoves((prev)=>{return [
+        ...prev,
         [
           (`${newGrid[row][col].toLocaleLowerCase()}${
                 grid[row][col][0] === "x" ? "x" : ""
@@ -755,19 +765,41 @@ export function moveFunction(
             (7 - row + 1).toString()).replace('p',''),
           "-",
         ],
-      ]);
-    else
-      setMoves([
-        ...moves.slice(0, moves.length - 1),
+      ]});
+      sendMessage && sendMessage(
+        newGrid,
+        (
+          `${newGrid[row][col].toLocaleLowerCase()}${
+            grid[row][col][0] === "x" ? "x" : ""
+          }` +
+          String.fromCharCode(col + 97) +
+          (7 - row + 1).toString()
+        ).replace("p", "")
+      );
+    }
+    else{
+      setMoves((prev)=>{return [
+        ...prev.slice(0, prev.length - 1),
         [
-          moves[moves.length - 1][0],
+          prev[prev.length - 1][0],
           (`${newGrid[row][col].toLocaleLowerCase()}${
                 grid[row][col][0] === "x" ? "x" : ""
               }` +
             String.fromCharCode(col + 97) +
             (7 - row + 1).toString()).replace('p',''),
         ],
-      ]);
+      ]});
+      sendMessage && sendMessage(
+        newGrid,
+        (
+          `${newGrid[row][col].toLocaleLowerCase()}${
+            grid[row][col][0] === "x" ? "x" : ""
+          }` +
+          String.fromCharCode(col + 97) +
+          (7 - row + 1).toString()
+        ).replace("p", "")
+      );
+    }
     setTurn(!turn);
     setSelectedIndex([row, col]);
   }

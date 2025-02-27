@@ -46,6 +46,18 @@ export default function Chessboard() {
     setGrid(newGrid);
   }, []);
 
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      return "Are you sure you want to leave?";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, []);
+
   useEffect(() => {
     if (movesEndRef.current) {
       movesEndRef.current.scrollIntoView({ behavior: "smooth" });
@@ -152,7 +164,6 @@ export default function Chessboard() {
           setPromotionRow,
           setShowPromotionModal,
           turn,
-          moves,
           setTurn
         )
       );

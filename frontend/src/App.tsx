@@ -13,10 +13,10 @@ function App() {
         <Route
           path="/friend/:player1?/:player2?/:time?"
           element={
-            <Chessboard onlineGame={false}/>
+            <Chessboard/>
           }
         />
-        <Route path="/online" element={<Chessboard onlineGame={true} />} />
+        <Route path="/online" element={<OnlineGame/>} />
         {/* <Route path="/computer" element={<Chessboard />} /> */}
       </Routes>
     </Router>

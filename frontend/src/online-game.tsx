@@ -15,10 +15,11 @@ import {
   removeBadMoves,
   moveFunction,
 } from "./chessFunctions.ts";
+import LoadingScreen from "./LoadingScreen.tsx";
 
 export default function OnlineGame() {
   const [turn, setTurn] = useState(true);
-  const [loading,setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [selectedIndex, setSelectedIndex] = useState([-1, -1]);
   const movesEndRef = useRef<HTMLDivElement | null>(null);
   const websocketRef = useRef<WebSocket | null>(null);
@@ -32,32 +33,78 @@ export default function OnlineGame() {
   const [promotionPiece, setPromotionPiece] = useState(" ");
   const [promotionRow, setPromotionRow] = useState(-1);
   const [promotionCol, setPromotionCol] = useState(-1);
-  const [player, setPlayer] = useState(true);
+  const player = useRef(true);
   const [grid, setGrid] = useState<string[][]>(
     Array.from({ length: 8 }, () => Array(8).fill(" "))
   );
 
-  function rotate180(grid) {
-    return grid.map((row) => [...row].reverse()).reverse();
-  }
-
   function receive_data(data: string) {
     console.log(data);
-    if (data === "white") setPlayer(true);
-    else if (data !== "connection accepted") {
+    if (data === "black") {
+      let newGrid = Array.from({ length: 8 }, () => Array(8).fill(" "));
+
+      newGrid[0] = ["r", "n", "b", "q", "k", "b", "n", "r"];
+      newGrid[7] = ["R", "N", "B", "Q", "K", "B", "N", "R"];
+
+      for (let i = 0; i < 8; i++) {
+        newGrid[1][i] = "p";
+        newGrid[6][i] = "P";
+      }
+      player.current = false;
+      setGrid(newGrid);
+      setLoading(false);
+    } else if (data === "white") {
+      let newGrid = Array.from({ length: 8 }, () => Array(8).fill(" "));
+
+      newGrid[0] = ["r", "n", "b", "q", "k", "b", "n", "r"];
+      newGrid[7] = ["R", "N", "B", "Q", "K", "B", "N", "R"];
+
+      for (let i = 0; i < 8; i++) {
+        newGrid[1][i] = "p";
+        newGrid[6][i] = "P";
+      }
+      setGrid(newGrid);
+      setLoading(false);
+    } else if (data !== "connection accepted") {
+      let dataArray = data.split("/");
+      data = dataArray[0];
       let newGrid = Array.from({ length: 8 }, (_, i) =>
         data.slice(i * 8, (i + 1) * 8).split("")
       );
-      if (!player)
-        newGrid = rotate180(newGrid);
-      setTurn(!turn);
+      if (!player.current)
+        setMoves((prev) => {
+          return [...prev, [dataArray[1], "-"]];
+        });
+      else
+        setMoves((prev) => {
+          return [
+            ...prev.slice(0, prev.length - 1),
+            [prev[prev.length - 1][0], dataArray[1]],
+          ];
+        });
       setGrid(newGrid);
+      setTurn((prev) => {
+        return !prev;
+      });
     }
   }
 
-  function sendMessage(grid) {
-    websocketRef.current?.send(grid.flat().join(""));
+  function sendMessage(grid: string[][], move: string) {
+    if (player.current)
+      websocketRef.current?.send(grid.flat().join("") + "/" + move);
+    else websocketRef.current?.send(grid.flat().join("") + "/" + move);
   }
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      return "Are you sure you want to leave?";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, []);
 
   useEffect(() => {
     if (websocketRef.current) return;
@@ -73,34 +120,15 @@ export default function OnlineGame() {
         websocket.onopen = () => {};
         websocket.onmessage = (event) => {
           receive_data(event.data);
-          websocket.onmessage = (event) => {
-            receive_data(event.data);
-            resolve();
-          };
         };
+        resolve();
       });
     }
 
-    async function initializeConnection() {
-      await waitForConnectionAndMessage();
-      setLoading(false);
-    }
-
-    initializeConnection();
+    waitForConnectionAndMessage();
   }, []);
 
-  useEffect(() => {
-    let newGrid = Array.from({ length: 8 }, () => Array(8).fill(" "));
-
-    newGrid[0] = ["r", "n", "b", "q", "k", "b", "n", "r"];
-    newGrid[7] = ["R", "N", "B", "Q", "K", "B", "N", "R"];
-
-    for (let i = 0; i < 8; i++) {
-      newGrid[1][i] = "p";
-      newGrid[6][i] = "P";
-    }
-    setGrid(rotate180(newGrid));
-  }, []);
+  useEffect(() => {}, []);
 
   useEffect(() => {
     if (movesEndRef.current) {
@@ -141,37 +169,57 @@ export default function OnlineGame() {
           else if (newGrid[i][j][0] === "x") newGrid[i][j] = newGrid[i][j][1];
         }
       }
-      if (turn)
-        setMoves([
-          ...moves,
-          [
-            String.fromCharCode(col + 97) +
-              (7 - row + 1).toString() +
-              promotionPiece,
-            "-",
-          ],
-        ]);
-      else
-        setMoves([
-          ...moves.slice(0, moves.length - 1),
-          [
-            moves[moves.length - 1][0],
-            String.fromCharCode(col + 97) +
-              (7 - row + 1).toString() +
-              promotionPiece.toLocaleUpperCase(),
-          ],
-        ]);
+      if (turn) {
+        setMoves((prev) => {
+          return [
+            ...prev,
+            [
+              String.fromCharCode(col + 97) +
+                (7 - row + 1).toString() +
+                promotionPiece,
+              "-",
+            ],
+          ];
+        });
+        sendMessage(
+          newGrid,
+          String.fromCharCode(col + 97) +
+            (7 - row + 1).toString() +
+            promotionPiece
+        );
+      } else {
+        setMoves((prev) => {
+          return [
+            ...prev.slice(0, prev.length - 1),
+            [
+              prev[prev.length - 1][0],
+              String.fromCharCode(col + 97) +
+                (7 - row + 1).toString() +
+                promotionPiece.toLocaleUpperCase(),
+            ],
+          ];
+        });
+        sendMessage(
+          newGrid,
+          String.fromCharCode(col + 97) +
+            (7 - row + 1).toString() +
+            promotionPiece.toLocaleUpperCase()
+        );
+      }
       setGrid(newGrid);
       setTurn(!turn);
     }
   }, [promotionPiece]);
 
   function cellFunction(row: number, col: number, value: string) {
+    console.log(row, col, turn);
     setShowPromotionModal(false);
     let newGrid = structuredClone(grid);
     if (
       (turn && blackPieces.includes(value)) ||
       (!turn && whitePieces.includes(value)) ||
+      (player.current && blackPieces.includes(value)) ||
+      (!player.current && whitePieces.includes(value)) ||
       value === " "
     )
       newGrid = structuredClone(clearGrid(newGrid));
@@ -208,16 +256,16 @@ export default function OnlineGame() {
           setPromotionRow,
           setShowPromotionModal,
           turn,
-          moves,
-          setTurn
+          setTurn,
+          sendMessage
         )
       );
-      sendMessage(newGrid);
     }
     setGrid(newGrid);
   }
-
-  return (
+  return loading ? (
+    <LoadingScreen />
+  ) : (
     <div className="chess-page">
       {showPromotionModal && (
         <PromotionModal
@@ -250,26 +298,51 @@ export default function OnlineGame() {
           </div>
         </div>
         <div className="grid-container">
-          {grid.map((row: string[], rowIndex: number) =>
-            row.map((cellValue: string, colIndex: number) => (
-              <Square
-                key={`${rowIndex}-${colIndex}`}
-                value={cellValue}
-                row={rowIndex}
-                col={colIndex}
-                onClick={() => {
-                  cellFunction(rowIndex, colIndex, cellValue);
-                }}
-              />
-            ))
-          )}
+          {player.current
+            ? grid.map((row: string[], rowIndex: number) =>
+                row.map((cellValue: string, colIndex: number) => (
+                  <Square
+                    key={`${rowIndex}-${colIndex}`}
+                    value={cellValue}
+                    row={rowIndex}
+                    col={colIndex}
+                    onClick={() => {
+                      cellFunction(rowIndex, colIndex, cellValue);
+                    }}
+                  />
+                ))
+              )
+            : grid
+                .slice()
+                .reverse()
+                .map((row: string[], rowIndex: number) =>
+                  row
+                    .slice()
+                    .reverse()
+                    .map((cellValue: string, colIndex: number) => (
+                      <Square
+                        key={`${rowIndex}-${colIndex}`}
+                        value={cellValue}
+                        row={7 - rowIndex}
+                        col={7 - colIndex}
+                        onClick={() => {
+                          cellFunction(7 - rowIndex, 7 - colIndex, cellValue);
+                        }}
+                      />
+                    ))
+                )}
         </div>
       </div>
       <div className="moves-container">
         <div className="moves-heading">Moves</div>
         <div className="moves-box">
           {moves.map((move, index) => (
-            <Move number={index + 1} Wmove={move[0]} Bmove={move[1]} />
+            <Move
+              key={index}
+              number={index + 1}
+              Wmove={move[0]}
+              Bmove={move[1]}
+            />
           ))}
           <div ref={movesEndRef} />
         </div>
@@ -320,4 +393,3 @@ function Move({ number, Wmove, Bmove }) {
     </div>
   );
 }
-
