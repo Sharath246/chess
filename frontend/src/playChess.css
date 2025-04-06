@@ -1,3 +1,5 @@
+
+
 .home-page {
     display: flex;
     flex-direction: column;
@@ -52,7 +54,7 @@
 }
 
 .modal-content {
-  font-family: 'Poppins', sans-serif;
+  font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
   background: rgba(163, 177, 194, 0.9); /* Keeping original color with transparency */
   padding: 2.5rem;
   border-radius: 12px;
@@ -97,6 +99,7 @@
   color: rgb(58, 58, 58);
   outline: none;
   transition: all 0.3s ease;
+  font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
 }
 
 .name-input:focus {
@@ -110,6 +113,7 @@
   justify-content: center;
   align-items: center;
   gap: 0.8rem;
+  font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
 }
 
 .time-input {
@@ -123,6 +127,7 @@
   color: rgb(58, 58, 58);
   outline: none;
   transition: all 0.3s ease;
+  font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
 }
 
 .time-input:focus {
@@ -146,11 +151,13 @@
 .confirm-button {
   background-color: #4caf50; /* Green */
   color: white;
+  font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
 }
 
 .cancel-button {
   background-color: #f44336; /* Red */
   color: white;
+  font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
 }
 
 .confirm-button:hover {

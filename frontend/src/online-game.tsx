@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { ReactNode, useEffect, useRef, useState } from "react";
 import "./chessboard.css";
 import { Square } from "./Square.tsx";
 import {
@@ -14,6 +14,7 @@ import {
   enPassant,
   removeBadMoves,
   moveFunction,
+  checkCheckMate,
 } from "./chessFunctions.ts";
 import LoadingScreen from "./LoadingScreen.tsx";
 
@@ -23,11 +24,6 @@ export default function OnlineGame() {
   const [selectedIndex, setSelectedIndex] = useState([-1, -1]);
   const movesEndRef = useRef<HTMLDivElement | null>(null);
   const websocketRef = useRef<WebSocket | null>(null);
-  let player1 = "Player1",
-    player2 = "Player2",
-    time = 3600;
-  const [timer1, setTimer1] = useState<number>(Number(time) * 2);
-  const [timer2, setTimer2] = useState<number>(Number(time) * 2);
   const [moves, setMoves] = useState<string[][]>([]);
   const [showPromotionModal, setShowPromotionModal] = useState(false);
   const [promotionPiece, setPromotionPiece] = useState(" ");
@@ -37,9 +33,9 @@ export default function OnlineGame() {
   const [grid, setGrid] = useState<string[][]>(
     Array.from({ length: 8 }, () => Array(8).fill(" "))
   );
+  const [checkMate, setCheckMate] = useState("");
 
   function receive_data(data: string) {
-    console.log(data);
     if (data === "black") {
       let newGrid = Array.from({ length: 8 }, () => Array(8).fill(" "));
 
@@ -136,25 +132,6 @@ export default function OnlineGame() {
     }
   }, [moves]);
 
-  useEffect(() => {
-    if (!time || Number.isNaN(time)) return;
-    if (Number(time) !== 0 && (timer1 === 0 || timer2 === 0)) {
-      if (timer1 === 0) alert(`Time Up!! ${player2} won the game`);
-      else alert(`Time Up!! ${player1} won the game`);
-    }
-    const interval = setInterval(() => {
-      setTurn((prevTurn) => {
-        if (prevTurn) {
-          setTimer1((prev) => Math.max(0, prev - 1));
-        } else {
-          setTimer2((prev) => Math.max(0, prev - 1));
-        }
-        return prevTurn;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     if (promotionPiece !== " ") {
@@ -212,8 +189,8 @@ export default function OnlineGame() {
   }, [promotionPiece]);
 
   function cellFunction(row: number, col: number, value: string) {
-    console.log(row, col, turn);
     setShowPromotionModal(false);
+    if (checkMate !== "") return;
     let newGrid = structuredClone(grid);
     if (
       (turn && blackPieces.includes(value)) ||
@@ -260,6 +237,8 @@ export default function OnlineGame() {
           sendMessage
         )
       );
+      if (checkCheckMate(newGrid, !turn, moves))
+        setCheckMate(turn ? "black" : "white");
     }
     setGrid(newGrid);
   }
@@ -272,29 +251,43 @@ export default function OnlineGame() {
           turn={turn}
           setShowPromotionModal={setShowPromotionModal}
           setPromotionPiece={setPromotionPiece}
-        />
+          title={"Choose a Piece"}
+        >
+          <div className="promotion-options">
+            {["Q", "R", "N", "B"].map((piece) => (
+              <img
+                className="promotion-button"
+                src={`/pieces/${turn ? "w" : "b"}${piece}.svg`}
+                alt={piece}
+                onClick={() => {
+                  setShowPromotionModal(false);
+                  setPromotionPiece(turn ? piece : piece.toLowerCase());
+                }}
+              />
+            ))}
+          </div>
+        </PromotionModal>
+      )}
+      {checkMate !== "" && (
+        <PromotionModal
+          turn={turn}
+          setShowPromotionModal={setShowPromotionModal}
+          title={
+            checkMate === "white"
+              ? `Black Won the game`
+              : `White won the game`
+          }
+        >
+          <></>
+        </PromotionModal>
       )}
       <div className="chess-container">
         <div className="chess-players">
           <div className={(turn === false) + "-player"}>
-            {player2}
-            {timer2 !== null &&
-              !Number.isNaN(timer2) &&
-              timer2 !== 0 &&
-              " - " +
-                `${Math.floor(timer2 / 120)}:${
-                  Math.floor(((timer2 / 2) % 60) / 10) === 0 ? "0" : ""
-                }${(timer2 / 2) % 60}`}
+            Black
           </div>
           <div className={turn + "-player"}>
-            {player1}
-            {timer1 !== null &&
-              !Number.isNaN(timer1) &&
-              timer2 !== 0 &&
-              " - " +
-                `${Math.floor(timer1 / 120)}:${
-                  Math.floor(((timer1 / 2) % 60) / 10) === 0 ? "0" : ""
-                }${(timer1 / 2) % 60}`}
+            White
           </div>
         </div>
         <div className="grid-container">
@@ -354,31 +347,22 @@ export default function OnlineGame() {
 type PromotionModalProps = {
   turn: boolean;
   setShowPromotionModal: React.Dispatch<React.SetStateAction<boolean>>;
-  setPromotionPiece: React.Dispatch<React.SetStateAction<string>>;
+  setPromotionPiece?: React.Dispatch<React.SetStateAction<string>>;
+  title: string;
+  children: ReactNode;
 };
 
 function PromotionModal({
   turn,
   setShowPromotionModal,
   setPromotionPiece,
+  ...props
 }: PromotionModalProps) {
   return (
     <div className="promotion-modal-overlay">
       <div className="promotion-modal">
-        <span className="promotion-title">Choose a Piece</span>
-        <div className="promotion-options">
-          {["Q", "R", "N", "B"].map((piece) => (
-            <img
-              className="promotion-button"
-              src={`/pieces/${turn ? "w" : "b"}${piece}.svg`}
-              alt={piece}
-              onClick={() => {
-                setShowPromotionModal(false);
-                setPromotionPiece(turn ? piece : piece.toLowerCase());
-              }}
-            />
-          ))}
-        </div>
+        <span className="promotion-title">{props.title}</span>
+        {props.children}
       </div>
     </div>
   );

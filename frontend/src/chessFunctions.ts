@@ -1,6 +1,65 @@
 export const whitePieces = ["K", "Q", "R", "B", "N", "P"];
 export const blackPieces = ["k", "q", "r", "b", "n", "p"];
 
+function getKingPosition(grid:string[][],color:boolean)
+{
+  let i=0,j=0;
+  for (i = 0; i < 8; i++) {
+    for (j = 0; j < 8; j++) {
+      if ((color && grid[i][j] === "K") || (!color && grid[i][j] === 'k')) {
+        return { i, j };
+      }
+    }
+  }
+  return {i,j};
+}
+
+export function checkCheckMate(grid:string[][],turn:boolean,moves: string[][]){
+  let newGrid = structuredClone(grid);
+  let pos = getKingPosition(newGrid,turn);
+  let ky = pos['j'], kx = pos['i']; 
+  newGrid = structuredClone(clearGrid(newGrid));
+  if(checkcheck(newGrid,kx,ky,turn))
+  {
+    for(let i=0;i<8;i++)
+    {
+      for(let j=0;j<8;j++)
+      {
+        if((turn && whitePieces.includes(grid[i][j])) || (!turn && blackPieces.includes(grid[i][j])))
+        {
+          let value = grid[i][j], row = i, col = j;
+          let newGrid = structuredClone(clearGrid(grid));
+          if (value.toLocaleLowerCase() === "k") {
+            newGrid = structuredClone(kingMoves(row, col, newGrid, turn));
+            newGrid = structuredClone(checkCastle(turn, moves, newGrid));
+          } else if (value.toLocaleLowerCase() === "q") {
+            newGrid = structuredClone(diagonalMoves(row, col, newGrid, turn));
+            newGrid = structuredClone(verticalMoves(row, col, newGrid, turn));
+          } else if (value.toLocaleLowerCase() === "p") {
+            newGrid = structuredClone(pawnMoves(row, col, turn, newGrid));
+          } else if (value.toLocaleLowerCase() === "r")
+            newGrid = structuredClone(verticalMoves(row, col, newGrid, turn));
+          else if (value.toLocaleLowerCase() === "b")
+            newGrid = structuredClone(diagonalMoves(row, col, newGrid, turn));
+          else if (value.toLocaleLowerCase() === "n")
+            newGrid = structuredClone(knightMoves(row, col, newGrid, turn));
+          newGrid = structuredClone(removeBadMoves(newGrid, row, col, turn));
+          newGrid = structuredClone(enPassant(turn, row, col, moves, newGrid));
+          for (let l = 0; l < 8; l++) {
+            for (let m = 0; m < 8; m++) {
+              if (newGrid[l][m] == "." || newGrid[l][m][0] == "x") {
+                return false;
+              }
+            }
+          }
+        }
+      }
+    }
+    return true;
+  }
+  else return false;
+}
+
 export function checkcheck(
   grid: string[][],
   x: number,

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { ReactNode, useEffect, useRef, useState } from "react";
 import "./chessboard.css";
 import { Square } from "./Square.tsx";
 import { useParams } from "react-router-dom";
@@ -15,6 +15,7 @@ import {
   enPassant,
   removeBadMoves,
   moveFunction,
+  checkCheckMate,
 } from "./chessFunctions.ts";
 
 export default function Chessboard() {
@@ -32,6 +33,7 @@ export default function Chessboard() {
   const [grid, setGrid] = useState<string[][]>(
     Array.from({ length: 8 }, () => Array(8).fill(" "))
   );
+  const [checkMate, setCheckMate] = useState("");
 
   useEffect(() => {
     let newGrid = Array.from({ length: 8 }, () => Array(8).fill(" "));
@@ -45,7 +47,6 @@ export default function Chessboard() {
     }
     setGrid(newGrid);
   }, []);
-
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -124,6 +125,7 @@ export default function Chessboard() {
 
   function cellFunction(row: number, col: number, value: string) {
     setShowPromotionModal(false);
+    if (checkMate !== "") return;
     let newGrid = structuredClone(grid);
     if (
       (turn && blackPieces.includes(value)) ||
@@ -167,6 +169,8 @@ export default function Chessboard() {
           setTurn
         )
       );
+      if (checkCheckMate(newGrid, !turn, moves))
+        setCheckMate(turn ? "black" : "white");
     }
     setGrid(newGrid);
   }
@@ -178,7 +182,35 @@ export default function Chessboard() {
           turn={turn}
           setShowPromotionModal={setShowPromotionModal}
           setPromotionPiece={setPromotionPiece}
-        />
+          title={"Choose a Piece"}
+        >
+          <div className="promotion-options">
+            {["Q", "R", "N", "B"].map((piece) => (
+              <img
+                className="promotion-button"
+                src={`/pieces/${turn ? "w" : "b"}${piece}.svg`}
+                alt={piece}
+                onClick={() => {
+                  setShowPromotionModal(false);
+                  setPromotionPiece(turn ? piece : piece.toLowerCase());
+                }}
+              />
+            ))}
+          </div>
+        </PromotionModal>
+      )}
+      {checkMate !== "" && (
+        <PromotionModal
+          turn={turn}
+          setShowPromotionModal={setShowPromotionModal}
+          title={
+            checkMate === "white"
+              ? `${player2} Won the game`
+              : `${player1} won the game`
+          }
+        >
+          <></>
+        </PromotionModal>
       )}
       <div className="chess-container">
         <div className="chess-players">
@@ -188,9 +220,9 @@ export default function Chessboard() {
               !Number.isNaN(timer2) &&
               timer2 !== 0 &&
               " - " +
-                `${Math.floor(timer2 / 120)}:${
-                  Math.floor(((timer2 / 2) % 60) / 10) === 0 ? "0" : ""
-                }${(timer2 / 2) % 60}`}
+                `${Math.floor(timer2 / 60)}:${
+                  Math.floor((timer2 % 60) / 10) === 0 ? "0" : ""
+                }${timer2 % 60}`}
           </div>
           <div className={turn + "-player"}>
             {player1}
@@ -198,9 +230,9 @@ export default function Chessboard() {
               !Number.isNaN(timer1) &&
               timer2 !== 0 &&
               " - " +
-                `${Math.floor(timer1 / 120)}:${
-                  Math.floor(((timer1 / 2) % 60) / 10) === 0 ? "0" : ""
-                }${(timer1 / 2) % 60}`}
+                `${Math.floor(timer1 / 60)}:${
+                  Math.floor((timer1 % 60) / 10) === 0 ? "0" : ""
+                }${timer1 % 60}`}
           </div>
         </div>
         <div className="grid-container">
@@ -235,31 +267,22 @@ export default function Chessboard() {
 type PromotionModalProps = {
   turn: boolean;
   setShowPromotionModal: React.Dispatch<React.SetStateAction<boolean>>;
-  setPromotionPiece: React.Dispatch<React.SetStateAction<string>>;
+  setPromotionPiece?: React.Dispatch<React.SetStateAction<string>>;
+  title: string;
+  children: ReactNode;
 };
 
 function PromotionModal({
   turn,
   setShowPromotionModal,
   setPromotionPiece,
+  ...props
 }: PromotionModalProps) {
   return (
     <div className="promotion-modal-overlay">
       <div className="promotion-modal">
-        <span className="promotion-title">Choose a Piece</span>
-        <div className="promotion-options">
-          {["Q", "R", "N", "B"].map((piece) => (
-            <img
-              className="promotion-button"
-              src={`/pieces/${turn ? "w" : "b"}${piece}.svg`}
-              alt={piece}
-              onClick={() => {
-                setShowPromotionModal(false);
-                setPromotionPiece(turn ? piece : piece.toLowerCase());
-              }}
-            />
-          ))}
-        </div>
+        <span className="promotion-title">{props.title}</span>
+        {props.children}
       </div>
     </div>
   );
