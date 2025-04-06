@@ -23,8 +23,8 @@ export default function Chessboard() {
   const [selectedIndex, setSelectedIndex] = useState([-1, -1]);
   const movesEndRef = useRef<HTMLDivElement | null>(null);
   let { player1, player2, time } = useParams();
-  const [timer1, setTimer1] = useState<number>(Number(time) * 2);
-  const [timer2, setTimer2] = useState<number>(Number(time) * 2);
+  const [timer1, setTimer1] = useState<number>(Number(time));
+  const [timer2, setTimer2] = useState<number>(Number(time));
   const [moves, setMoves] = useState<string[][]>([]);
   const [showPromotionModal, setShowPromotionModal] = useState(false);
   const [promotionPiece, setPromotionPiece] = useState(" ");
