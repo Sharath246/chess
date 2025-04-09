@@ -6,11 +6,12 @@ import random
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['http://localhost:3000','http://localhost:3001'],
+    allow_origins=['https://chess-4u2b.onrender.com'],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # class Game:
 #     def __init__(self):
