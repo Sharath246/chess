@@ -107,7 +107,7 @@ export default function OnlineGame() {
 
     const randInteger = Math.floor(Math.random() * 10000);
     const websocket = new WebSocket(
-      `ws://127.0.0.1:9000/play-game?client_id=${randInteger}`
+      `wss://chess-backend-ao0a.onrender.com/play-game?client_id=${randInteger}`
     );
     websocketRef.current = websocket;
 
