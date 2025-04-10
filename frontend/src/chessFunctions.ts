@@ -1,33 +1,41 @@
+import { Chess } from "chess.js";
+import { RefObject } from "react";
 export const whitePieces = ["K", "Q", "R", "B", "N", "P"];
 export const blackPieces = ["k", "q", "r", "b", "n", "p"];
 
-function getKingPosition(grid:string[][],color:boolean)
-{
-  let i=0,j=0;
+function getKingPosition(grid: string[][], color: boolean) {
+  let i = 0,
+    j = 0;
   for (i = 0; i < 8; i++) {
     for (j = 0; j < 8; j++) {
-      if ((color && grid[i][j] === "K") || (!color && grid[i][j] === 'k')) {
+      if ((color && grid[i][j] === "K") || (!color && grid[i][j] === "k")) {
         return { i, j };
       }
     }
   }
-  return {i,j};
+  return { i, j };
 }
 
-export function checkCheckMate(grid:string[][],turn:boolean,moves: string[][]){
+export function checkCheckMate(
+  grid: string[][],
+  turn: boolean,
+  moves: string[][]
+) {
   let newGrid = structuredClone(grid);
-  let pos = getKingPosition(newGrid,turn);
-  let ky = pos['j'], kx = pos['i']; 
+  let pos = getKingPosition(newGrid, turn);
+  let ky = pos["j"],
+    kx = pos["i"];
   newGrid = structuredClone(clearGrid(newGrid));
-  if(checkcheck(newGrid,kx,ky,turn))
-  {
-    for(let i=0;i<8;i++)
-    {
-      for(let j=0;j<8;j++)
-      {
-        if((turn && whitePieces.includes(grid[i][j])) || (!turn && blackPieces.includes(grid[i][j])))
-        {
-          let value = grid[i][j], row = i, col = j;
+  if (checkcheck(newGrid, kx, ky, turn)) {
+    for (let i = 0; i < 8; i++) {
+      for (let j = 0; j < 8; j++) {
+        if (
+          (turn && whitePieces.includes(grid[i][j])) ||
+          (!turn && blackPieces.includes(grid[i][j]))
+        ) {
+          let value = grid[i][j],
+            row = i,
+            col = j;
           let newGrid = structuredClone(clearGrid(grid));
           if (value.toLocaleLowerCase() === "k") {
             newGrid = structuredClone(kingMoves(row, col, newGrid, turn));
@@ -47,7 +55,7 @@ export function checkCheckMate(grid:string[][],turn:boolean,moves: string[][]){
           newGrid = structuredClone(enPassant(turn, row, col, moves, newGrid));
           for (let l = 0; l < 8; l++) {
             for (let m = 0; m < 8; m++) {
-              if (newGrid[l][m] == "." || newGrid[l][m][0] == "x") {
+              if (newGrid[l][m] === "." || newGrid[l][m][0] === "x") {
                 return false;
               }
             }
@@ -56,8 +64,7 @@ export function checkCheckMate(grid:string[][],turn:boolean,moves: string[][]){
       }
     }
     return true;
-  }
-  else return false;
+  } else return false;
 }
 
 export function checkcheck(
@@ -720,7 +727,6 @@ export function moveFunction(
   col: number,
   grid: string[][],
   newGrid: string[][],
-  setMoves: React.Dispatch<React.SetStateAction<string[][]>>,
   selectedIndex: number[],
   setSelectedIndex: React.Dispatch<React.SetStateAction<number[]>>,
   setPromotionCol: React.Dispatch<React.SetStateAction<number>>,
@@ -728,8 +734,16 @@ export function moveFunction(
   setShowPromotionModal: React.Dispatch<React.SetStateAction<boolean>>,
   turn: boolean,
   setTurn: React.Dispatch<React.SetStateAction<boolean>>,
-  sendMessage?: (grid: string[][],move:string) => void
+  game?: RefObject<Chess | null>,
+  sendMessage?: (
+    from: string,
+    to: string,
+    websocketRef: React.RefObject<WebSocket | null>,
+    promotion?: string
+  ) => void,
+  websocketRef?: React.RefObject<WebSocket | null>
 ) {
+  let chess = game?.current;
   if (
     newGrid[selectedIndex[0]][selectedIndex[1]].toLocaleLowerCase() === "p" &&
     ((turn && selectedIndex[0] === 1) || (!turn && selectedIndex[0] === 6))
@@ -754,29 +768,18 @@ export function moveFunction(
         else if (newGrid[i][j][0] === "x") newGrid[i][j] = newGrid[i][j][1];
       }
     }
-    if (turn){
-      setMoves((prev)=>{return [
-        ...prev,
-        [String.fromCharCode(col + 97) + (7 - row + 1).toString(), "-"],
-      ]});
-      sendMessage && sendMessage(
-        newGrid,
-        String.fromCharCode(col + 97) + (7 - row + 1).toString()
+    chess?.move({
+      from: `${String.fromCharCode(selectedIndex[1] + 97)}${
+        8 - selectedIndex[0]
+      }`,
+      to: `${String.fromCharCode(col + 97)}${8 - row}`,
+    });
+    if (sendMessage && websocketRef)
+      sendMessage(
+        `${String.fromCharCode(selectedIndex[1] + 97)}${8 - selectedIndex[0]}`,
+        `${String.fromCharCode(col + 97)}${8 - row}`,
+        websocketRef
       );
-    }
-    else{
-      setMoves((prev)=>{return [
-        ...prev.slice(0, prev.length - 1),
-        [
-          prev[prev.length - 1][0],
-          String.fromCharCode(col + 97) + (7 - row + 1).toString(),
-        ],
-      ]});
-      sendMessage && sendMessage(
-        newGrid,
-        String.fromCharCode(col + 97) + (7 - row + 1).toString()
-      );
-    }
     setTurn(!turn);
     setSelectedIndex([row, col]);
   } else {
@@ -813,52 +816,18 @@ export function moveFunction(
         }
       }
     }
-    if (turn){
-      setMoves((prev)=>{return [
-        ...prev,
-        [
-          (`${newGrid[row][col].toLocaleLowerCase()}${
-                grid[row][col][0] === "x" ? "x" : ""
-              }` +
-            String.fromCharCode(col + 97) +
-            (7 - row + 1).toString()).replace('p',''),
-          "-",
-        ],
-      ]});
-      sendMessage && sendMessage(
-        newGrid,
-        (
-          `${newGrid[row][col].toLocaleLowerCase()}${
-            grid[row][col][0] === "x" ? "x" : ""
-          }` +
-          String.fromCharCode(col + 97) +
-          (7 - row + 1).toString()
-        ).replace("p", "")
+    chess?.move({
+      from: `${String.fromCharCode(selectedIndex[1] + 97)}${
+        8 - selectedIndex[0]
+      }`,
+      to: `${String.fromCharCode(col + 97)}${8 - row}`,
+    });
+    if (sendMessage && websocketRef)
+      sendMessage(
+        `${String.fromCharCode(selectedIndex[1] + 97)}${8 - selectedIndex[0]}`,
+        `${String.fromCharCode(col + 97)}${8 - row}`,
+        websocketRef
       );
-    }
-    else{
-      setMoves((prev)=>{return [
-        ...prev.slice(0, prev.length - 1),
-        [
-          prev[prev.length - 1][0],
-          (`${newGrid[row][col].toLocaleLowerCase()}${
-                grid[row][col][0] === "x" ? "x" : ""
-              }` +
-            String.fromCharCode(col + 97) +
-            (7 - row + 1).toString()).replace('p',''),
-        ],
-      ]});
-      sendMessage && sendMessage(
-        newGrid,
-        (
-          `${newGrid[row][col].toLocaleLowerCase()}${
-            grid[row][col][0] === "x" ? "x" : ""
-          }` +
-          String.fromCharCode(col + 97) +
-          (7 - row + 1).toString()
-        ).replace("p", "")
-      );
-    }
     setTurn(!turn);
     setSelectedIndex([row, col]);
   }
