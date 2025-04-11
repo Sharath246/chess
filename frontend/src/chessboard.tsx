@@ -118,10 +118,7 @@ export default function Chessboard({ gameType }) {
     if (movesEndRef.current) {
       movesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [game.current?.moveNumber]);
-
-  useEffect(() => {
-    if (turn != player.current && gameType === "Computer") {
+    if (turn !== player.current && gameType === "Computer") {
       ComputerMessage(game, setGrid, setTurn);
     }
   }, [turn]);
@@ -227,6 +224,11 @@ export default function Chessboard({ gameType }) {
     <LoadingScreen />
   ) : (
     <div className="chess-page">
+      <div className="moves-container">
+        <div className="moves-box">
+          <MoveManager all_moves={game.current?.history()} movesEndRef={movesEndRef}/>
+        </div>
+      </div>
       {showPromotionModal && (
         <PromotionModal
           turn={turn}
@@ -335,13 +337,6 @@ export default function Chessboard({ gameType }) {
                 )}
         </div>
       </div>
-      <div className="moves-container">
-        <div className="moves-heading">Moves</div>
-        <div className="moves-box">
-          <MoveManager all_moves={game.current?.history()} />
-          <div ref={movesEndRef} />
-        </div>
-      </div>
     </div>
   );
 }
@@ -372,15 +367,20 @@ function PromotionModal({
 
 function Move({ number, Wmove, Bmove }) {
   return (
-    <div className="move-item">
-      <div style={{ width: "10%" }}>{number}</div>
-      <div style={{ width: "20%" }}>{Wmove}</div>
-      <div style={{ width: "20%" }}>{Bmove}</div>
+    <div className="move-item-container">
+      <div className="move-item">{number}</div>
+      <div className="move-item">{Wmove}</div>
+      <div className="move-item">{Bmove}</div>
     </div>
   );
 }
 
-function MoveManager({ all_moves }) {
+type MoveManagerProps = {
+  movesEndRef: React.RefObject<HTMLDivElement | null>;
+  all_moves?: string[];
+};
+
+function MoveManager({ all_moves , movesEndRef}:MoveManagerProps) {
   let arr = all_moves || [];
   if (arr.length % 2 !== 0) arr.push("-");
   let moves: string[][] = [];
@@ -392,6 +392,7 @@ function MoveManager({ all_moves }) {
       {moves.map((move, index) => (
         <Move key={index} number={index + 1} Wmove={move[0]} Bmove={move[1]} />
       ))}
+      <div className="move-item-container" ref={movesEndRef} />
     </>
   );
 }
