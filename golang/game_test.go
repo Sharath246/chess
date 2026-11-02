@@ -1,30 +1,42 @@
 package main
 
 import (
-	"slices"
 	"testing"
 )
 
-func TestStateMachine(t *testing.T) {
+func TestCanTransition(t *testing.T) {
 	tests := []struct {
-		name  string
-		input MESSAGE_TYPE
-		want  []MESSAGE_TYPE
+		name string
+		from MESSAGE_TYPE
+		to   MESSAGE_TYPE
+		want bool
 	}{
-		{name: "online prior states", input: ONLINE, want: []MESSAGE_TYPE{"", ONLINE, PLAYING_GAME}},
-		{name: "ready for game prior states", input: READY_FOR_GAME, want: []MESSAGE_TYPE{ONLINE, REQUEST_GAME, PAIRED}},
-		{name: "request game prior states", input: REQUEST_GAME, want: []MESSAGE_TYPE{READY_FOR_GAME}},
-		{name: "paired prior states", input: PAIRED, want: []MESSAGE_TYPE{READY_FOR_GAME, REQUEST_GAME}},
-		{name: "playing game prior states", input: PLAYING_GAME, want: []MESSAGE_TYPE{PAIRED}},
-		{name: "blank input prior states", input: "", want: []MESSAGE_TYPE{}},
-		{name: "unknonwn state", input: MESSAGE_TYPE("UNKNOWN"), want: []MESSAGE_TYPE{}},
+		{name: "online to ready for game", from: ONLINE, to: READY_FOR_GAME, want: true},
+		{name: "online to paired", from: ONLINE, to: PAIRED, want: false},
+		{name: "online to playing game", from: ONLINE, to: PLAYING_GAME, want: false},
+		{name: "ready for game to request game", from: READY_FOR_GAME, to: REQUEST_GAME, want: true},
+		{name: "ready for game to paired", from: READY_FOR_GAME, to: PAIRED, want: true},
+		{name: "ready for game to online", from: READY_FOR_GAME, to: ONLINE, want: false},
+		{name: "request game to ready for game", from: REQUEST_GAME, to: READY_FOR_GAME, want: true},
+		{name: "request game to paired", from: REQUEST_GAME, to: PAIRED, want: true},
+		{name: "request game to request game", from: REQUEST_GAME, to: REQUEST_GAME, want: false},
+		{name: "paired to ready for game", from: PAIRED, to: READY_FOR_GAME, want: true},
+		{name: "paired to playing game", from: PAIRED, to: PLAYING_GAME, want: true},
+		{name: "paired to online", from: PAIRED, to: ONLINE, want: false},
+		{name: "playing game to online", from: PLAYING_GAME, to: ONLINE, want: true},
+		{name: "playing game to ready for game", from: PLAYING_GAME, to: READY_FOR_GAME, want: false},
+		{name: "playing game to playing game", from: PLAYING_GAME, to: PLAYING_GAME, want: true},
+		{name: "empty current status to online", from: MESSAGE_TYPE(""), to: ONLINE, want: false},
+		{name: "empty current status to ready for game", from: MESSAGE_TYPE(""), to: READY_FOR_GAME, want: false},
+		{name: "unknown from to unknown", from: MESSAGE_TYPE("UNKNOWN"), to: MESSAGE_TYPE("UNKNOWN"), want: false},
+		{name: "unknown request to online", from: MESSAGE_TYPE("UNKNOWN"), to: ONLINE, want: false},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := state_machine(tc.input)
-			if !slices.Equal(got, tc.want) {
-				t.Errorf("state_machine(%q) = %q, want %q", tc.input, got, tc.want)
+			got := canTransition(tc.from, tc.to)
+			if got != tc.want {
+				t.Fatalf("canTransition(%q, %q) = %v, want %v", tc.from, tc.to, got, tc.want)
 			}
 		})
 	}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"slices"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -587,37 +588,33 @@ func reject_draw(ctx context.Context, msg GameReceiveMessage) GameSendMessage {
 	return GameSendMessage{TYPE: REJECT_DRAW_REQUEST, GameId: msg.GameId}
 }
 
-// state_machine takes a requested status and returns the statuses from which that transition
-// is valid. An empty message type represents a player with no stored status.
-func state_machine(requestedStatus MESSAGE_TYPE) []MESSAGE_TYPE {
-	switch requestedStatus {
+func canTransition(from, to MESSAGE_TYPE) bool {
+	switch from {
 	case ONLINE:
-		return []MESSAGE_TYPE{"", ONLINE, PLAYING_GAME}
+		return slices.Contains([]MESSAGE_TYPE{READY_FOR_GAME, ONLINE}, to)
 	case READY_FOR_GAME:
-		return []MESSAGE_TYPE{ONLINE, REQUEST_GAME, PAIRED}
+		return slices.Contains([]MESSAGE_TYPE{REQUEST_GAME, PAIRED}, to)
 	case REQUEST_GAME:
-		return []MESSAGE_TYPE{READY_FOR_GAME}
+		return slices.Contains([]MESSAGE_TYPE{READY_FOR_GAME, PAIRED}, to)
 	case PAIRED:
-		return []MESSAGE_TYPE{READY_FOR_GAME, REQUEST_GAME}
+		return slices.Contains([]MESSAGE_TYPE{PLAYING_GAME, READY_FOR_GAME}, to)
 	case PLAYING_GAME:
-		return []MESSAGE_TYPE{PAIRED}
+		return slices.Contains([]MESSAGE_TYPE{PLAYING_GAME, ONLINE}, to)
 	default:
-		return []MESSAGE_TYPE{}
+		return false
 	}
 }
 
 // transition_player_status takes a username and requested status, validates the current Redis
-// status against state_machine, and stores the new status. It returns a Redis or transition error.
+// status against canTransition function, and stores the new status. It returns a Redis or transition error.
 func transition_player_status(username string, requestedStatus MESSAGE_TYPE) error {
 	currentValue, err := get_redis_key(PLAYER_STATUS + username)
 	if err != nil && !errors.Is(err, redis.Nil) {
 		return err
 	}
 	currentStatus := MESSAGE_TYPE(currentValue)
-	for _, allowedPreviousStatus := range state_machine(requestedStatus) {
-		if currentStatus == allowedPreviousStatus {
-			return set_redis_key(PLAYER_STATUS+username, string(requestedStatus), 0)
-		}
+	if canTransition(currentStatus, requestedStatus) {
+		return set_redis_key(PLAYER_STATUS+username, string(requestedStatus), 0)
 	}
 	return fmt.Errorf("invalid player status transition for %q: %q to %q", username, currentStatus, requestedStatus)
 }
