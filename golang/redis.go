@@ -10,6 +10,8 @@ import (
 var rdb *redis.Client
 var ctx = context.Background()
 
+// set_redis_key takes a Redis key, value, and expiration duration, stores the value, and
+// returns the Redis command error, if any.
 func set_redis_key(key string, value string, expiration time.Duration) error {
 	err := rdb.Set(ctx, key, string(value), expiration).Err()
 
@@ -20,6 +22,7 @@ func set_redis_key(key string, value string, expiration time.Duration) error {
 	return nil
 }
 
+// delete_redis_key takes a Redis key, deletes it, and returns the Redis command error, if any.
 func delete_redis_key(key string) error {
 	err := rdb.Del(ctx, key).Err()
 
@@ -29,6 +32,7 @@ func delete_redis_key(key string) error {
 	return nil
 }
 
+// get_redis_key takes a Redis key and returns its stored string value and any lookup error.
 func get_redis_key(key string) (string, error) {
 	val, err := rdb.Get(ctx, key).Result()
 
@@ -39,6 +43,8 @@ func get_redis_key(key string) (string, error) {
 	return val, nil
 }
 
+// redis_main initializes the shared Redis client using the local server configuration. It
+// takes no arguments and returns no value.
 func redis_main() {
 
 	rdb = redis.NewClient(&redis.Options{

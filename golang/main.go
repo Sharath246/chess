@@ -1,16 +1,12 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"sync"
 
 	"github.com/coder/websocket"
-	"github.com/coder/websocket/wsjson"
 )
 
 var testingMode bool
@@ -20,6 +16,8 @@ var (
 	playerConnMutex  sync.RWMutex
 )
 
+// corsMiddleware takes the next HTTP handler, adds CORS headers, and handles preflight
+// requests. It returns an HTTP handler that delegates allowed non-preflight requests.
 func corsMiddleware(next http.Handler) http.Handler {
 	allowedOrigins := map[string]bool{
 		"http://localhost:3000": true,
@@ -30,6 +28,8 @@ func corsMiddleware(next http.Handler) http.Handler {
 		"http://127.0.0.1:3002": true,
 	}
 
+	// The returned handler takes an HTTP writer and request, then either writes a preflight
+	// response or passes the request to next; it produces no Go return value.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
 		if allowedOrigins[origin] {
@@ -52,70 +52,30 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// chessWebsocket takes an HTTP writer and request, authenticates and upgrades the request,
+// then reads and dispatches messages until the connection ends. It writes HTTP/WebSocket
+// responses and returns no Go value.
 func chessWebsocket(w http.ResponseWriter, r *http.Request) {
 	username, ok := usernameFromRequest(r)
 	if !ok {
 		writeJSONError(w, http.StatusUnauthorized, "valid session required")
 		return
 	}
-
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 		InsecureSkipVerify: true,
 	})
+
 	if err != nil {
 		log.Printf("Failed to accept connection: %v", err)
 		return
 	}
 	defer conn.CloseNow()
 
-	playerConnMutex.Lock()
-	player_conn_info[username] = conn
-	playerConnMutex.Unlock()
-	if err := set_redis_key(PLAYER_STATUS+username, string(ONLINE), 0); err != nil {
-		close_connection(conn)
-		return
-	}
-	defer func() {
-		playerConnMutex.Lock()
-		if player_conn_info[username] == conn {
-			delete(player_conn_info, username)
-		}
-		playerConnMutex.Unlock()
-		_ = delete_redis_key(PLAYER_STATUS + username)
-	}()
-
-	fmt.Println("Client connected:", username)
-	for {
-		var rawMessage json.RawMessage
-		readCtx, cancel := context.WithCancel(r.Context())
-		err := wsjson.Read(readCtx, conn, &rawMessage)
-		cancel()
-		if err != nil {
-			if websocket.CloseStatus(err) == websocket.StatusNormalClosure {
-				fmt.Println("Client disconnected normally.")
-				return
-			}
-			log.Printf("Read error: %v", err)
-			return
-		}
-
-		readMsg, err := decodeWebSocketMessage(rawMessage)
-		if err != nil {
-			log.Printf("Invalid message: %v", err)
-			_ = writeWSMessage(r.Context(), conn, PlayerMessage{TYPE: REJECT})
-			continue
-		}
-
-		writeMsg := processMessage(r.Context(), conn, username, readMsg)
-		if writeMsg != nil {
-			if err := writeWSMessage(r.Context(), conn, writeMsg); err != nil {
-				close_connection(conn)
-				return
-			}
-		}
-	}
+	game_connection(username, conn, r.Context())
 }
 
+// get_player_connection takes a username and returns its current WebSocket connection and
+// a boolean indicating whether that connection is registered.
 func get_player_connection(username string) (*websocket.Conn, bool) {
 	playerConnMutex.RLock()
 	defer playerConnMutex.RUnlock()
@@ -123,6 +83,8 @@ func get_player_connection(username string) (*websocket.Conn, bool) {
 	return conn, ok
 }
 
+// get_player_conn_info takes an unused username and returns a slice containing the usernames
+// with registered WebSocket connections.
 func get_player_conn_info(_ string) []string {
 	playerConnMutex.RLock()
 	defer playerConnMutex.RUnlock()
@@ -133,20 +95,26 @@ func get_player_conn_info(_ string) []string {
 	return players
 }
 
+// mark_online takes an HTTP writer and authenticated request, marks the player online in
+// Redis, and writes the current player list or a JSON error response. It returns no Go value.
 func mark_online(w http.ResponseWriter, r *http.Request) {
 	username, _ := usernameFromRequest(r)
-	if err := set_redis_key(PLAYER_STATUS+username, string(ONLINE), 0); err != nil {
+	if err := transition_player_status(username, ONLINE); err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "could not mark user online")
 		return
 	}
 	writeJSON(w, http.StatusOK, get_player_conn_info(username))
 }
 
+// get_online takes an HTTP writer and authenticated request, then writes the connected player
+// usernames as JSON. It returns no Go value.
 func get_online(w http.ResponseWriter, r *http.Request) {
 	username, _ := usernameFromRequest(r)
 	writeJSON(w, http.StatusOK, get_player_conn_info(username))
 }
 
+// main parses backend flags, initializes Redis and game state, registers HTTP routes, and
+// serves the API and WebSocket endpoint on port 8080. It takes no arguments or return values.
 func main() {
 	flag.BoolVar(&testingMode, "testing", false, "bypass authentication for local testing")
 	flag.Parse()

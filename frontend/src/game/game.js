@@ -26,6 +26,7 @@ const Game = ({ playingAs }) => {
     window.addEventListener("beforeunload", confirmReload);
     return () => window.removeEventListener("beforeunload", confirmReload);
   }, []);
+
   const {
     board,
     error,

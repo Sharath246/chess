@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useLocation, useNavigate } from "react-router-dom";
 import { ACCEPT_GAME_REQUEST, READY_FOR_GAME, REJECT_GAME_REQUEST, REQUEST_GAME, SEND_WEBSOCKET_MESSAGE, STATUS_CLOSED, STATUS_FAIL, STATUS_PENDING, STATUS_SUCCESS } from "../utils/constants";
 import { websocketConnectionStart } from "./reducers/websocket.reducer";
 import Game from "./game";
@@ -12,8 +13,11 @@ import { addOutgoingGameRequest, removeGameRequest } from "./reducers/game.reduc
 
 const OnlineGame = () => {
     const dispatch = useDispatch();
+    const navigate = useNavigate();
+    const location = useLocation();
     const connection = useSelector(state => state.websocket.websocket_connect_status);
     const sessionId = useSelector(state => state.websocket.sessionId);
+    const gameId = useSelector(state => state.game.gameId);
     const gameStatus = useSelector(state => state.game.gameStatus);
     const playingAs = useSelector(state => state.game.playingAs);
     const [onlinePlayers, setOnlinePlayers] = useState([]);
@@ -21,6 +25,14 @@ const OnlineGame = () => {
     const gameRequests = useSelector(state => state.game.gameRequests);
     const outgoingGameRequests = useSelector(state => state.game.outgoingGameRequests);
     const readySent = useRef(false);
+
+    useEffect(() => {
+        if (!gameId) return;
+        const gamePath = `/${encodeURIComponent(gameId)}`;
+        if (location.pathname !== gamePath) {
+            navigate(gamePath);
+        }
+    }, [gameId, location.pathname, navigate]);
 
     useEffect(() => {
         const storedSessionId = sessionStorage.getItem("sessionId");
@@ -34,14 +46,14 @@ const OnlineGame = () => {
     }, [dispatch]);
 
     useEffect(() => {
-        if (connection === STATUS_SUCCESS && sessionId && !readySent.current) {
+        if (connection === STATUS_SUCCESS && sessionId && !gameId && !readySent.current) {
             readySent.current = true;
             dispatch({ type: SEND_WEBSOCKET_MESSAGE, payload: { type: READY_FOR_GAME } });
         }
-    }, [connection, dispatch, sessionId]);
+    }, [connection, dispatch, gameId, sessionId]);
 
     useEffect(() => {
-        if (connection !== STATUS_SUCCESS || !sessionId) return undefined;
+        if (connection !== STATUS_SUCCESS || !sessionId || gameId) return undefined;
         let cancelled = false;
 
         const refreshPlayers = async () => {
@@ -62,7 +74,7 @@ const OnlineGame = () => {
             cancelled = true;
             window.clearInterval(intervalId);
         };
-    }, [connection, sessionId]);
+    }, [connection, gameId, sessionId]);
 
     const requestGame = (opponentUsername) => {
         dispatch(addOutgoingGameRequest(opponentUsername));

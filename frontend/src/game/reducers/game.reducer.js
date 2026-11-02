@@ -85,7 +85,6 @@ const gameSlice = createSlice({
         },
         setGameStatus: (state, action) => {
             state.gameStatus = action.payload
-            console.log(state.gameStatus)
         }
     }
 })

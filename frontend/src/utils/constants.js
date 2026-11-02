@@ -10,10 +10,13 @@ export const WEBSOCKET_MESSAGE_RECEIVED = "websocket_message_received"
 export const WEBSOCKET_ERROR = "websocket_error"
 
 export const READY_FOR_GAME = "READY_FOR_GAME";
+export const ONLINE = "ONLINE";
+export const PAIRED = "PAIRED";
+export const START_GAME = "START_GAME"
 export const REQUEST_GAME = "REQUEST_GAME";
 export const ACCEPT_GAME_REQUEST = "ACCEPT_GAME_REQUEST";
 export const REJECT_GAME_REQUEST = "REJECT_GAME_REQUEST";
-export const PLAYER_NOT_ONLINE = "PLAYER_NOT_ONLINE";
+export const PLAYER_NOT_AVAILABLE = "PLAYER_NOT_AVAILABLE";
 export const MAKE_MOVE = "MAKE_MOVE";
 export const OFFER_DRAW = "OFFER DRAW";
 export const ACCEPT_DRAW_REQUEST = "ACCEPT_DRAW_REQUEST";

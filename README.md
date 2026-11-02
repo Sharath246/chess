@@ -48,7 +48,7 @@ The base URL is `http://localhost:8080`. Successful authentication responses inc
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `POST` | `/register_user` | Register using `{ "email": "...", "password": "..." }`. Passwords must be at least 8 characters. |
+| `POST` | `/register_user` | Register using `{ "username": "...", "password": "..." }`, `{ "email": "...", "password": "..." }`, or both. Passwords must be at least 8 characters. Usernames are 3–20 letters, numbers, or underscores. |
 | `POST` | `/login` | Sign in using `{ "email": "...", "password": "..." }` or `{ "username": "...", "password": "..." }`. |
 | `POST` | `/guest_login` | Create a guest session. No request body is required. |
 | `GET` | `/get_online` | Return the usernames with active WebSocket connections. Requires a bearer session token. |

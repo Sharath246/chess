@@ -6,7 +6,7 @@ import { setSessionId } from "../game/reducers/websocket.reducer";
 const AuthScreen = ({ onAuthenticated }) => {
   const dispatch = useDispatch();
   const [isRegistering, setIsRegistering] = useState(false);
-  const [form, setForm] = useState({ identifier: "", email: "", password: "" });
+  const [form, setForm] = useState({ identifier: "", username: "", email: "", password: "" });
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -17,11 +17,21 @@ const AuthScreen = ({ onAuthenticated }) => {
   const submit = async (event) => {
     event.preventDefault();
     setError("");
+
+    if (isRegistering && !form.username.trim() && !form.email.trim()) {
+      setError("Enter a username or email address to create an account.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const user = isRegistering
-        ? await register({ email: form.email, password: form.password })
+        ? await register({
+            username: form.username.trim(),
+            email: form.email.trim(),
+            password: form.password,
+          })
         : await login({
             ...(form.identifier.includes("@")
               ? { email: form.identifier }
@@ -57,7 +67,7 @@ const AuthScreen = ({ onAuthenticated }) => {
   const switchMode = () => {
     setIsRegistering((current) => !current);
     setError("");
-    setForm({ identifier: "", email: "", password: "" });
+    setForm({ identifier: "", username: "", email: "", password: "" });
   };
 
   return (
@@ -71,13 +81,19 @@ const AuthScreen = ({ onAuthenticated }) => {
         <form className="auth-form" onSubmit={submit}>
           <div className="auth-heading">
             <h2>{isRegistering ? "Create account" : "Welcome back"}</h2>
-            <p>{isRegistering ? "Your first game is waiting." : "Continue your next game."}</p>
+            <p>{isRegistering ? "Choose a username, an email, or both." : "Continue your next game."}</p>
           </div>
           {isRegistering ? (
-            <label>
-              Email
-              <input name="email" type="email" value={form.email} onChange={updateField} required autoComplete="email" />
-            </label>
+            <>
+              <label>
+                Username
+                <input name="username" type="text" value={form.username} onChange={updateField} minLength={3} maxLength={20} pattern="[A-Za-z0-9_]{3,20}" autoComplete="username" />
+              </label>
+              <label>
+                Email
+                <input name="email" type="email" value={form.email} onChange={updateField} autoComplete="email" />
+              </label>
+            </>
           ) : (
             <label>
               Username or email

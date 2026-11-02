@@ -4,6 +4,7 @@ import { STATUS_CLOSED, STATUS_FAIL, STATUS_PENDING, STATUS_SUCCESS } from "../.
 const initialValue = {
     websocket_connect_status : undefined,
     sessionId: sessionStorage.getItem("sessionId") || undefined,
+    playerStatus: "",
     receivedMessages: [],
     sentMessages: [],
 }
@@ -13,21 +14,29 @@ const websocketSlice = createSlice({
     initialState: initialValue,
     reducers: {
         websocketConnectionStart: (state, action) => {
+            console.log("started")
             state.websocket_connect_status = STATUS_PENDING
         },
         websocketConnectionSuccess: (state, action) => {
+            console.log("conn success")
             state.websocket_connect_status = STATUS_SUCCESS
         },
         websocketConnectionClose: (state, action) => {
-            console.log("closed")
+            console.log("conn closed")
             state.websocket_connect_status = STATUS_CLOSED
         },
         websocketConnectionFail: (state, action) => {
-            console.log("fail")
+            console.log("conn fail")
             state.websocket_connect_status = STATUS_FAIL
         },
         setSessionId: (state, action) => {
             state.sessionId = action.payload
+        },
+        setPlayerStatus: (state, action) => {
+            state.playerStatus = action.payload
+        },
+        clearPlayerStatus: (state) => {
+            state.playerStatus = ""
         },
         setWebsocketReceivedMessages: (state, action) => {
             if(action.payload instanceof Array){
@@ -55,6 +64,8 @@ export const {
     websocketConnectionFail,
     websocketConnectionClose,
     setSessionId,
+    setPlayerStatus,
+    clearPlayerStatus,
     setWebsocketReceivedMessages,
     setWebsocketSentMessages
 } = websocketSlice.actions

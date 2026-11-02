@@ -22,7 +22,11 @@ const SquareGrid = styled(Box)({
   borderRadius: 4,
 });
 
-const Square = styled(Box)(({ light, selected, checked, playable, occupied }) => ({
+const Square = styled(Box, {
+  shouldForwardProp: (prop) =>
+    !["light", "selected", "checked", "playable", "occupied"].includes(prop) &&
+    !["ownerState", "theme", "sx", "as"].includes(prop),
+})(({ light, selected, checked, playable, occupied }) => ({
   display: "grid",
   placeItems: "center",
   position: "relative",
