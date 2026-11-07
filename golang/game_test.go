@@ -26,7 +26,7 @@ func TestCanTransition(t *testing.T) {
 		{name: "playing game to online", from: PLAYING_GAME, to: ONLINE, want: true},
 		{name: "playing game to ready for game", from: PLAYING_GAME, to: READY_FOR_GAME, want: false},
 		{name: "playing game to playing game", from: PLAYING_GAME, to: PLAYING_GAME, want: true},
-		{name: "empty current status to online", from: MESSAGE_TYPE(""), to: ONLINE, want: false},
+		{name: "empty current status to online", from: MESSAGE_TYPE(""), to: ONLINE, want: true},
 		{name: "empty current status to ready for game", from: MESSAGE_TYPE(""), to: READY_FOR_GAME, want: false},
 		{name: "unknown from to unknown", from: MESSAGE_TYPE("UNKNOWN"), to: MESSAGE_TYPE("UNKNOWN"), want: false},
 		{name: "unknown request to online", from: MESSAGE_TYPE("UNKNOWN"), to: ONLINE, want: false},

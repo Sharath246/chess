@@ -65,7 +65,7 @@ The browser connects to:
 ws://localhost:8080/play-game?sessionId=<sessionId>
 ```
 
-WebSocket messages are JSON objects with a `type` field. Matchmaking uses `READY_FOR_GAME`, `REQUEST_GAME` with an `opponentUsername`, and `ACCEPT_GAME_REQUEST` or `REJECT_GAME_REQUEST`. Moves use `MAKE_MOVE` with a `gameId` and algebraic move notation. The server broadcasts updated FEN positions and `DECLARE_RESULT` messages when a game ends. Draw offers use the backend message type `OFFER DRAW` (including the space); resignation uses `RESIGN_GAME`.
+WebSocket messages are JSON objects with a `type` field. Matchmaking uses `READY_FOR_GAME`, `REQUEST_GAME` with an `opponentUsername`, and `ACCEPT_GAME_REQUEST` or `REJECT_GAME_REQUEST`. Moves use `MAKE_MOVE` with a `gameId` and algebraic move notation. The server broadcasts updated FEN positions and `DECLARE_RESULT` messages when a game ends. Draw offers use the backend message type `OFFER_DRAW` (including the space); resignation uses `RESIGN_GAME`.
 
 ## Useful Commands
 
