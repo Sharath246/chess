@@ -22,8 +22,8 @@ func set_redis_key(key string, value string, expiration time.Duration) error {
 	return nil
 }
 
-// delete_redis_key takes a Redis key, deletes it, and returns the Redis command error, if any.
-func delete_redis_key(key string) error {
+// deleteRedisKey takes a Redis key, deletes it, and returns the Redis command error, if any.
+func deleteRedisKey(key string) error {
 	err := rdb.Del(ctx, key).Err()
 
 	if err != nil {
@@ -32,8 +32,8 @@ func delete_redis_key(key string) error {
 	return nil
 }
 
-// get_redis_key takes a Redis key and returns its stored string value and any lookup error.
-func get_redis_key(key string) (string, error) {
+// getRedisKey takes a Redis key and returns its stored string value and any lookup error.
+func getRedisKey(key string) (string, error) {
 	val, err := rdb.Get(ctx, key).Result()
 
 	if err != nil {

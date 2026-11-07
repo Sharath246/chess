@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/coder/websocket"
 )
 
 type MESSAGE_TYPE string
@@ -38,6 +40,11 @@ type GameSendMessage struct {
 	Color     string       `json:"color,omitempty"`
 	Winner    string       `json:"winner,omitempty"`
 	Result    string       `json:"result,omitempty"`
+}
+
+type PlayerInfo struct {
+	Username string
+	Conn     *websocket.Conn
 }
 
 type GameInfo struct {
@@ -80,6 +87,9 @@ const (
 	PAIRED               MESSAGE_TYPE = "PAIRED"
 	TIME_MISMATCH        MESSAGE_TYPE = "TIME_MISMATCH"
 	TIMEOUT              MESSAGE_TYPE = "TIMEOUT"
+
+	INTERNAL_SERVER_ERROR MESSAGE_TYPE = "INTERNAL_SERVER_ERROR"
+	INVALID_MESSAGE       MESSAGE_TYPE = "INVALID_MESSAGE"
 )
 
 // decodeWebSocketMessage takes raw JSON from a WebSocket, identifies its message category,

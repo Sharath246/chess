@@ -74,9 +74,9 @@ func chessWebsocket(w http.ResponseWriter, r *http.Request) {
 	game_connection(username, conn, r.Context())
 }
 
-// get_player_connection takes a username and returns its current WebSocket connection and
+// getConn takes a username and returns its current WebSocket connection and
 // a boolean indicating whether that connection is registered.
-func get_player_connection(username string) (*websocket.Conn, bool) {
+func getConn(username string) (*websocket.Conn, bool) {
 	playerConnMutex.RLock()
 	defer playerConnMutex.RUnlock()
 	conn, ok := player_conn_info[username]
@@ -99,7 +99,7 @@ func get_player_conn_info(_ string) []string {
 // Redis, and writes the current player list or a JSON error response. It returns no Go value.
 func mark_online(w http.ResponseWriter, r *http.Request) {
 	username, _ := usernameFromRequest(r)
-	if err := transition_player_status(username, ONLINE); err != nil {
+	if err := transitionPlayerStatus(username, ONLINE); err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "could not mark user online")
 		return
 	}

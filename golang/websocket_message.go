@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/coder/websocket"
@@ -9,50 +11,81 @@ import (
 	"github.com/notnil/chess"
 )
 
-var active_games map[string]*chess.Game
+var activeGames map[string]*chess.Game
 var activeGamesMutex sync.RWMutex
 
 // processMessage takes a context, sender connection and username, and a decoded protocol
 // message. It dispatches the corresponding matchmaking or game action and returns a response
 // message, or nil when the action has already broadcast its result.
-func processMessage(ctx context.Context, conn *websocket.Conn, username string, msg any) any {
+func processMessage(ctx context.Context, conn *websocket.Conn, username string, msg any) (any, error) {
+	state, err := getRedisKey(PLAYER_STATUS + username)
+	if err != nil {
+		return nil, err
+	}
+	if !canPlayerSendMessageType(msg, state) {
+		return nil, fmt.Errorf("Player not allowed to send this message")
+	}
 	switch message := msg.(type) {
 	case PlayerMessage:
 		message.Username = username
 		switch message.TYPE {
 		case READY_FOR_GAME:
-			return make_conn_ready_for_game(message)
+			return readyForGame(message)
 		case REQUEST_GAME:
-			return request_game(ctx, message)
+			return requestGame(ctx, message)
 		case ACCEPT_GAME_REQUEST:
-			response := accept_game(ctx, conn, message)
-			if response.TYPE == PAIRED {
-				start_game(ctx, message.Username, message.OpponentUsername)
-			}
-			return response
+			response, err := acceptGame(ctx, conn, message)
+			return response, err
 		case REJECT_GAME_REQUEST:
-			return decline_game(ctx, message)
+			return declineGame(ctx, message)
 		default:
-			return PlayerMessage{Username: message.Username, TYPE: REJECT}
+			return PlayerMessage{Username: message.Username, TYPE: REJECT}, nil
 		}
 	case GameReceiveMessage:
 		message.Username = username
 		switch message.TYPE {
 		case MAKE_MOVE:
-			return make_game_move(ctx, message)
+			return makeMove(ctx, message)
 		case OFFER_DRAW:
-			return offer_draw(ctx, message)
+			return offerDraw(ctx, message)
 		case RESIGN_GAME:
-			return resign_game(ctx, message)
+			return resignGame(ctx, message)
 		case ACCEPT_DRAW_REQUEST:
-			return accept_draw(ctx, message)
+			return acceptDraw(ctx, message)
 		case REJECT_DRAW_REQUEST:
-			return reject_draw(ctx, message)
+			return rejectDraw(ctx, message)
 		default:
-			return GameSendMessage{TYPE: REJECT, GameId: message.GameId}
+			return GameSendMessage{TYPE: REJECT, GameId: message.GameId}, nil
 		}
 	}
-	return PlayerMessage{TYPE: REJECT}
+	return PlayerMessage{TYPE: REJECT}, nil
+}
+
+func canPlayerSendMessageType(msg any, state string) bool {
+	switch message := msg.(type) {
+	case PlayerMessage:
+		switch MESSAGE_TYPE(state) {
+		case "":
+			return false
+		case ONLINE:
+			return slices.Contains([]MESSAGE_TYPE{READY_FOR_GAME}, message.TYPE)
+		case READY_FOR_GAME:
+			return slices.Contains([]MESSAGE_TYPE{REQUEST_GAME, ACCEPT_GAME_REQUEST, REJECT_GAME_REQUEST}, message.TYPE)
+		default:
+			return false
+		}
+	case GameReceiveMessage:
+		switch MESSAGE_TYPE(state) {
+		case "":
+			return false
+		case PLAYING_GAME:
+			return slices.Contains([]MESSAGE_TYPE{MAKE_MOVE, OFFER_DRAW, RESIGN_GAME, ACCEPT_DRAW_REQUEST, REJECT_DRAW_REQUEST}, message.TYPE)
+		default:
+			return false
+		}
+	default:
+		return false
+	}
 }
 
 // writeWSMessage takes a context, WebSocket connection, and message value, writes the value as
@@ -75,6 +108,6 @@ func close_connection(conn *websocket.Conn) {
 // no value.
 func websocket_main() {
 	activeGamesMutex.Lock()
-	active_games = make(map[string]*chess.Game)
+	activeGames = make(map[string]*chess.Game)
 	activeGamesMutex.Unlock()
 }
