@@ -31,10 +31,10 @@ Success:
 Status: sender ONLINE → READY_FOR_GAME
 
 Failures:
-- already ready for game → sender gets { type: REJECT, username, reason: already_in_state }
-- sender not ONLINE → { type: REJECT, username, reason: not_online }
-- internal error → sender gets { type: INTERNAL_ERROR, username }
-- sender in PAIRED/PLAYING_GAME state → sender gets { type: REJECT, username, reason: previous_state_transition_not_allowed }
+- already ready for game → sender gets { type: REJECT, username, reason: ALREADY_IN_STATE }
+- sender not ONLINE → { type: REJECT, username, reason: NOT_AUTHORIZED }
+- internal error → sender gets { type: INTERNAL_SERVER_ERROR, username }
+- sender in PAIRED/PLAYING_GAME state → sender gets { type: REJECT, username, reason: INVALID_STATE_TRANSITION }
 
 ### REQUEST_GAME
 Sent by:   a user in status READY_FOR_GAME
@@ -47,18 +47,18 @@ Success:
 Status: sender, target unchanged.
 
 Failures:
-- sender not ONLINE → { type: REJECT, username, opponentUsername, reason: not_online, username }
-- target not ONLINE → sender gets { type: REJECT, username, opponentUsername, reason: target_not_online}
-- sender in state ONLINE → sender gets { type: REJECT, username, opponentUsername, reason: sender_not_ready_for_game }
-- target in ONLINE state → sender gets { type: REJECT, username, opponentUsername, reason: target_not_ready_for_game}
-- internal error → sender gets { type: INTERNAL_ERROR, username, opponentUsername }
+- sender not ONLINE → { type: REJECT, username, opponentUsername, reason: NOT_AUTHORIZED, username }
+- target not ONLINE → sender gets { type: REJECT, username, opponentUsername, reason: TARGET_NOT_ONLINE}
+- sender in state ONLINE → sender gets { type: REJECT, username, opponentUsername, reason: NOT_AUTHORIZED }
+- target in ONLINE state → sender gets { type: REJECT, username, opponentUsername, reason: TARGET_NOT_READY_FOR_GAME}
+- internal error → sender gets { type: INTERNAL_SERVER_ERROR, username, opponentUsername }
 
 ```Note :- We can change these in the future to make sender start multiple games hence start multiple requests```
 
-- sender in PAIRED state → sender gets { type: REJECT, username, opponentUsername, reason: sender_already_paired } 
-- target in PAIRED state → sender gets { type: REJECT, username, opponentUsername, reason: target_already_paired }
-- sender in PLAYING_GAME state → sender gets { type: REJECT, username, gameId, reason: sender_in_game } 
-- target in PLAYING_GAME state → sender gets { type: REJECT, username, opponentUsername, reason: target_in_game }
+- sender in PAIRED state → sender gets { type: REJECT, username, opponentUsername, reason: SENDER_ALREADY_PAIRED } 
+- target in PAIRED state → sender gets { type: REJECT, username, opponentUsername, reason: TARGET_ALREADY_PAIRED }
+- sender in PLAYING_GAME state → sender gets { type: REJECT, username, gameId, reason: SENDER_IN_GAME } 
+- target in PLAYING_GAME state → sender gets { type: REJECT, username, opponentUsername, reason: TARGET_IN_GAME }
 
 ### ACCEPT_GAME_REQUEST
 Sent by:   a user in status READY_FOR_GAME
@@ -71,19 +71,19 @@ Success:
 Status: sender, target status changed to PAIRED.
 
 Failures:
-- sender not ONLINE → { type: REJECT, username, reason: not_online }
-- target not ONLINE → sender gets { type: REJECT, username, opponentUsername, reason: target_not_online} ```Any existing Game request will be deleted.```
-- sender in state ONLINE → sender gets { type: REJECT, username, reason: sender_not_ready_for_game } ```Any existing Game request will be deleted.```
-- target in ONLINE state → sender gets { type: REJECT, username, opponentUsername, reason: target_not_ready_for_game} ```Any existing Game request will be deleted.```
-- No such game request made → sender gets { type: REJECT, username, opponentUsername, reason: no_game_request }
-- internal error → sender gets { type: INTERNAL_ERROR, username, opponentUsername }
+- sender not ONLINE → { type: REJECT, username, reason: NOT_AUTHORIZED }
+- target not ONLINE → sender gets { type: REJECT, username, opponentUsername, reason: TARGET_NOT_ONLINE} ```Any existing Game request will be deleted.```
+- sender in state ONLINE → sender gets { type: REJECT, username, reason: NOT_AUTHORIZED } ```Any existing Game request will be deleted.```
+- target in ONLINE state → sender gets { type: REJECT, username, opponentUsername, reason: TARGET_NOT_READY_FOR_GAME} ```Any existing Game request will be deleted.```
+- No such game request made → sender gets { type: REJECT, username, opponentUsername, reason: NO_GAME_REQUEST }
+- internal error → sender gets { type: INTERNAL_SERVER_ERROR, username, opponentUsername }
 
 ```Note :- We can change these in the future to make sender start multiple games hence start multiple requests```
 
-- sender in PAIRED state → sender gets { type: REJECT, username, opponentUsername, reason: sender_already_paired } 
-- target in PAIRED state → sender gets { type: REJECT, username, opponentUsername, reason: target_already_paired }
-- sender in PLAYING_GAME state → sender gets { type: REJECT, username, opponentUsername, reason: sender_in_game } 
-- target in PLAYING_GAME state → sender gets { type: REJECT, username, opponentUsername, reason: target_in_game }
+- sender in PAIRED state → sender gets { type: REJECT, username, opponentUsername, reason: SENDER_ALREADY_PAIRED } 
+- target in PAIRED state → sender gets { type: REJECT, username, opponentUsername, reason: TARGET_ALREADY_PAIRED }
+- sender in PLAYING_GAME state → sender gets { type: REJECT, username, opponentUsername, reason: SENDER_IN_GAME } 
+- target in PLAYING_GAME state → sender gets { type: REJECT, username, opponentUsername, reason: TARGET_IN_GAME }
 
 ### REJECT_GAME_REQUEST
 Sent by:   a user in status READY_FOR_GAME
@@ -96,19 +96,19 @@ Success:
 Status: sender, target status changed to READY_FOR_GAME.
 
 Failures:
-- sender not ONLINE → { type: REJECT, username, opponentUsername, reason: not_online }
+- sender not ONLINE → { type: REJECT, username, opponentUsername, reason: NOT_AUTHORIZED }
 - target not ONLINE → sender gets { type: ACCEPT, opponentUsername} ```Any existing Game request will be deleted.```
-- sender in state ONLINE → sender gets { type: REJECT, username, opponentUsername, reason: sender_not_ready_for_game } ```Any existing Game request will be deleted.```
-- target in ONLINE state → sender gets { type: REJECT, username, opponentUsername, reason: target_not_ready_for_game } ```Any existing Game request will be deleted.```
-- No such game request made → sender gets { type: REJECT, username, opponentUsername, reason: no_game_request }
-- internal error → sender gets { type: INTERNAL_ERROR, username, opponentUsername }
+- sender in state ONLINE → sender gets { type: REJECT, username, opponentUsername, reason: NOT_AUTHORIZED } ```Any existing Game request will be deleted.```
+- target in ONLINE state → sender gets { type: REJECT, username, opponentUsername, reason: TARGET_NOT_READY_FOR_GAME } ```Any existing Game request will be deleted.```
+- No such game request made → sender gets { type: REJECT, username, opponentUsername, reason: NO_GAME_REQUEST }
+- internal error → sender gets { type: INTERNAL_SERVER_ERROR, username, opponentUsername }
 
 ```Note :- We can change these in the future to make sender start multiple games hence start multiple requests```
 
-- sender in PAIRED state → sender gets { type: REJECT, username, opponentUsername, reason: sender_already_paired } ```Any existing Game request will be deleted.```
-- target in PAIRED state → sender gets { type: REJECT, username, opponentUsername, reason: target_already_paired } ```Any existing Game request will be deleted.```
-- sender in PLAYING_GAME state → sender gets { type: REJECT, username, opponentUsername, reason: sender_in_game } ```Any existing Game request will be deleted.```
-- target in PLAYING_GAME state → sender gets { type: REJECT, username, opponentUsername, reason: target_in_game } ```Any existing Game request will be deleted.```
+- sender in PAIRED state → sender gets { type: REJECT, username, opponentUsername, reason: SENDER_ALREADY_PAIRED } ```Any existing Game request will be deleted.```
+- target in PAIRED state → sender gets { type: REJECT, username, opponentUsername, reason: TARGET_ALREADY_PAIRED } ```Any existing Game request will be deleted.```
+- sender in PLAYING_GAME state → sender gets { type: REJECT, username, opponentUsername, reason: SENDER_IN_GAME } ```Any existing Game request will be deleted.```
+- target in PLAYING_GAME state → sender gets { type: REJECT, username, opponentUsername, reason: TARGET_IN_GAME } ```Any existing Game request will be deleted.```
 
 
 ### MAKE_MOVE
@@ -122,14 +122,14 @@ Success:
 Status: sender, target unchanged.
 
 Failures:
-- sender not ONLINE → { type: REJECT, username, gameId, reason: not_online }
+- sender not ONLINE → { type: REJECT, username, gameId, reason: NOT_AUTHORIZED }
 - target not ONLINE → sender gets { type: DECLARE_RESULT, fen, gameId, result: "Opponent disconnected", winner: sender's color}
 - sender in state ONLINE → sender gets { type: REJECT, username, gameId, reason: sender_not_in_game }
 - target in ONLINE state → sender gets { type: DECLARE_RESULT, fen, gameId, result: "Opponent disconnected", winner: sender's color }
-- No such game → sender gets { type: REJECT, username, gameId, reason: no_such_game }
-- Invalid Move → sender gets { type: REJECT, username, gameId, reason: invalid_move }
-- Invalid time → sender gets { type: REJECT, username, gameId, reason: invalid_time } ```Should finalize the game``` 
-- internal error → sender gets { type: INTERNAL_ERROR, username, gameId }
+- No such game → sender gets { type: REJECT, username, gameId, reason: NO_SUCH_GAME }
+- Invalid Move → sender gets { type: REJECT, username, gameId, reason: INVALID_MOVE }
+- Invalid time → sender gets { type: REJECT, username, gameId, reason: TIME_ERROR } ```Should finalize the game``` 
+- internal error → sender gets { type: INTERNAL_SERVER_ERROR, username, gameId }
 
 ### OFFER_DRAW
 Sent by:   a user in status PLAYING_GAME
@@ -142,12 +142,12 @@ Success:
 Status: sender, target unchanged.
 
 Failures:
-- sender not ONLINE → { type: REJECT, username, gameId, reason: not_online }
+- sender not ONLINE → { type: REJECT, username, gameId, reason: NOT_AUTHORIZED }
 - target not ONLINE → sender gets { type: DECLARE_RESULT, fen, gameId, result: "Opponent disconnected", winner: sender's color}
 - sender in state ONLINE → sender gets { type: REJECT, username, gameId, reason: sender_not_in_game }
 - target in ONLINE state → sender gets { type: DECLARE_RESULT, fen, gameId, result: "Opponent disconnected", winner: sender's color }
-- No such game → sender gets { type: REJECT, username, gameId, reason: no_such_game } 
-- internal error → sender gets { type: INTERNAL_ERROR, username, gameId }
+- No such game → sender gets { type: REJECT, username, gameId, reason: NO_SUCH_GAME } 
+- internal error → sender gets { type: INTERNAL_SERVER_ERROR, username, gameId }
 
 ### ACCEPT_DRAW_REQUEST
 Sent by:   a user in status PLAYING_GAME
@@ -160,12 +160,12 @@ Success:
 Status: sender, target moved to ONLINE.
 
 Failures:
-- sender not ONLINE → { type: REJECT, username, gameId, reason: not_online }
+- sender not ONLINE → { type: REJECT, username, gameId, reason: NOT_AUTHORIZED }
 - target not ONLINE → sender gets { type: ACCEPT_DRAW_REQUEST, username, gameId }
 - sender in state ONLINE → sender gets { type: REJECT, username, gameId, reason: sender_not_in_game }
 - target in ONLINE state → sender gets { type: ACCEPT_DRAW_REQUEST, gameId }
-- No such game request → sender gets { type: REJECT, username, gameId, reason: no_game_request } 
-- internal error → sender gets { type: INTERNAL_ERROR, username, gameId }
+- No such game request → sender gets { type: REJECT, username, gameId, reason: NO_GAME_REQUEST } 
+- internal error → sender gets { type: INTERNAL_SERVER_ERROR, username, gameId }
 
 ### REJECT_DRAW_REQUEST
 Sent by:   a user in status PLAYING_GAME
@@ -178,12 +178,12 @@ Success:
 Status: sender, target unchanged.
 
 Failures:
-- sender not ONLINE → { type: REJECT, username, gameId, reason: not_online }
+- sender not ONLINE → { type: REJECT, username, gameId, reason: NOT_AUTHORIZED }
 - target not ONLINE → sender gets { type: DECLARE_RESULT, fen, gameId, result: "Opponent disconnected", winner: sender's color}
 - sender in state ONLINE → sender gets { type: REJECT, username, gameId, reason: sender_not_in_game }
 - target in ONLINE state → sender gets { type: DECLARE_RESULT, fen, gameId, result: "Opponent disconnected", winner: sender's color}
-- No such game request → sender gets { type: REJECT, username, gameId, reason: no_game_request } 
-- internal error → sender gets { type: INTERNAL_ERROR, username, gameId }
+- No such game request → sender gets { type: REJECT, username, gameId, reason: NO_GAME_REQUEST } 
+- internal error → sender gets { type: INTERNAL_SERVER_ERROR, username, gameId }
 
 ### RESIGN_GAME
 Sent by:   a user in status PLAYING_GAME
@@ -196,9 +196,9 @@ Success:
 Status: sender, target unchanged.
 
 Failures:
-- sender not ONLINE → { type: REJECT, username, gameId, reason: not_online }
+- sender not ONLINE → { type: REJECT, username, gameId, reason: NOT_AUTHORIZED }
 - target not ONLINE → sender,target gets { type: DECLARE_RESULT, fen, gameId, result: "Opponent disconnected", winner: target's color}
 - sender in state ONLINE → sender gets { type: REJECT, username, gameId, reason: sender_not_in_game }
 - target in ONLINE state → sender, target gets { type: DECLARE_RESULT, fen, gameId, result: "Opponent disconnected", winner: target's color}
-- No such game request → sender gets { type: REJECT, username, gameId, reason: no_game_request } 
-- internal error → sender gets { type: INTERNAL_ERROR, username, gameId }
+- No such game request → sender gets { type: REJECT, username, gameId, reason: NO_GAME_REQUEST } 
+- internal error → sender gets { type: INTERNAL_SERVER_ERROR, username, gameId }

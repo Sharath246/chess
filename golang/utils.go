@@ -9,6 +9,7 @@ import (
 )
 
 type MESSAGE_TYPE string
+type ERROR_CODE string
 
 type PlayerMessage struct {
 	Username         string       `json:"username"`
@@ -75,7 +76,6 @@ const (
 	ONLINE               MESSAGE_TYPE = "ONLINE"
 	PLAYING_GAME         MESSAGE_TYPE = "PLAYING_GAME"
 	MAKE_MOVE            MESSAGE_TYPE = "MAKE_MOVE"
-	INVALID_MOVE         MESSAGE_TYPE = "INVALID_MOVE"
 	NOT_YOUR_TURN        MESSAGE_TYPE = "NOT_YOUR_TURN"
 	DECLARE_RESULT       MESSAGE_TYPE = "DECLARE_RESULT"
 	GAME_REQUEST         MESSAGE_TYPE = "GAME_REQUEST:"
@@ -88,9 +88,33 @@ const (
 	TIME_MISMATCH        MESSAGE_TYPE = "TIME_MISMATCH"
 	TIMEOUT              MESSAGE_TYPE = "TIMEOUT"
 
-	INTERNAL_SERVER_ERROR MESSAGE_TYPE = "INTERNAL_SERVER_ERROR"
-	INVALID_MESSAGE       MESSAGE_TYPE = "INVALID_MESSAGE"
+	INVALID_MESSAGE MESSAGE_TYPE = "INVALID_MESSAGE"
 )
+
+const (
+	ALREADY_IN_STATE          ERROR_CODE = "ALREADY_IN_STATE"
+	INVALID_STATE_TRANSITION  ERROR_CODE = "INVALID_STATE_TRANSITION"
+	INTERNAL_SERVER_ERROR     ERROR_CODE = "INTERNAL_SERVER_ERROR"
+	NOT_ATUHORIZED            ERROR_CODE = "NOT_ATUHORIZED"
+	TARGET_NOT_ONLINE         ERROR_CODE = "TARGET_NOT_ONLINE"
+	TARGET_NOT_READY_FOR_GAME ERROR_CODE = "TARGET_NOT_READY_FOR_GAME"
+	SENDER_ALREADY_PAIRED     ERROR_CODE = "SENDER_ALREADY_PAIRED"
+	TARGET_ALREADY_PAIRED     ERROR_CODE = "TARGET_ALREADY_PAIRED"
+	NO_SUCH_GAME              ERROR_CODE = "NO_SUCH_GAME"
+	NO_GAME_REQUEST           ERROR_CODE = "NO_GAME_REQUEST"
+	SENDER_IN_GAME            ERROR_CODE = "SENDER_IN_GAME"
+	TARGET_IN_GAME            ERROR_CODE = "TARGET_IN_GAME"
+	INVALID_MOVE              ERROR_CODE = "INVALID_GAME"
+	TIME_ERROR                ERROR_CODE = "TIME_ERROR"
+)
+
+type game_error struct {
+	error_code ERROR_CODE
+}
+
+func (c *game_error) Error() string {
+	return "Game Error: " + string(c.error_code) + " occured."
+}
 
 // decodeWebSocketMessage takes raw JSON from a WebSocket, identifies its message category,
 // and returns a PlayerMessage or GameReceiveMessage. It returns an error for invalid or
@@ -129,7 +153,7 @@ func decodeWebSocketMessage(rawMessage json.RawMessage) (any, error) {
 // game-message category.
 func isGameMessageType(messageType MESSAGE_TYPE) bool {
 	switch messageType {
-	case PLAYING_GAME, MAKE_MOVE, INVALID_MOVE, NOT_YOUR_TURN, DECLARE_RESULT, OFFER_DRAW, RESIGN_GAME, START_GAME, ACCEPT_DRAW_REQUEST, REJECT_DRAW_REQUEST:
+	case PLAYING_GAME, MAKE_MOVE, NOT_YOUR_TURN, DECLARE_RESULT, OFFER_DRAW, RESIGN_GAME, START_GAME, ACCEPT_DRAW_REQUEST, REJECT_DRAW_REQUEST:
 		return true
 	default:
 		return false
