@@ -589,7 +589,7 @@ func canTransition(from, to MESSAGE_TYPE) bool {
 	case MESSAGE_TYPE(""):
 		return slices.Contains([]MESSAGE_TYPE{ONLINE}, to)
 	case ONLINE:
-		return slices.Contains([]MESSAGE_TYPE{READY_FOR_GAME, ONLINE}, to)
+		return slices.Contains([]MESSAGE_TYPE{READY_FOR_GAME}, to)
 	case READY_FOR_GAME:
 		return slices.Contains([]MESSAGE_TYPE{REQUEST_GAME, PAIRED}, to)
 	case REQUEST_GAME:
@@ -611,13 +611,17 @@ func transitionPlayerStatus(username string, requestedStatus MESSAGE_TYPE) error
 		return err
 	}
 	currentStatus := MESSAGE_TYPE(currentValue)
+	if currentStatus == requestedStatus {
+		return &game_error{error_code: ALREADY_IN_STATE}
+	}
 	if canTransition(currentStatus, requestedStatus) {
 		err := set_redis_key(PLAYER_STATUS+username, string(requestedStatus), 0)
 		if err != nil {
-			return err
+			log.Printf("Error while setting redis key %q", err.Error())
+			return &game_error{error_code: INTERNAL_SERVER_ERROR}
 		} else {
 			return nil
 		}
 	}
-	return fmt.Errorf("invalid player status transition for %q: %q to %q", username, currentStatus, requestedStatus)
+	return &game_error{error_code: INVALID_STATE_TRANSITION}
 }

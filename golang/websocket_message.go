@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"sync"
 
@@ -23,7 +22,7 @@ func processMessage(ctx context.Context, conn *websocket.Conn, username string, 
 		return nil, err
 	}
 	if !canPlayerSendMessageType(msg, state) {
-		return nil, fmt.Errorf("Player not allowed to send this message")
+		return nil, &game_error{error_code: NOT_ATUHORIZED}
 	}
 	switch message := msg.(type) {
 	case PlayerMessage:
