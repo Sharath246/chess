@@ -1,3 +1,28 @@
+### CONNECT  (event, not a client message)
+Trigger:   client opens the WebSocket to /play-game?sessionId=<id> when the player enters the application
+
+Success:
+- no message sent            ← client can get the active games he is a part of here.
+Status: (none) → ONLINE
+
+Failures:
+- missing / invalid / expired session → HTTP 401, WebSocket not opened
+- origin not allowed → HTTP 403, WebSocket not opened   (target: origin check is disabled today)
+- user already has an open connection (second tab) → UNDECIDED (reject the new one / replace the old one / allow both)
+- internal error (status cannot be stored) → socket closed with close code 1011 (internal error)
+
+### DISCONNECT  (event, not a client message)
+Trigger:   socket closes (tab closed, network lost, or server closed it)
+
+Effects, by the user's status at the moment of disconnect:
+- ONLINE or READY_FOR_GAME → no messages
+- pending game requests SENT by the user → each target receives UNDECIDED (so the request disappears from their list)
+- pending game requests RECEIVED by the user → each requester receives UNDECIDED
+- PAIRED → opponent receives UNDECIDED; opponent status → UNDECIDED
+- PLAYING_GAME → opponent receives { type: DECLARE_RESULT, gameId, fen, result: "Opponent disconnected", winner: opponent's color }
+                opponent status → ONLINE; game ends; any pending draw offer is discarded
+Status: user's status removed
+
 ### READY_FOR_GAME
 Sent by:   a user in status ONLINE
 
@@ -172,8 +197,8 @@ Status: sender, target unchanged.
 
 Failures:
 - sender not ONLINE → { type: REJECT, username, gameId, reason: not_online }
-- target not ONLINE → sender gets { type: DECLARE_RESULT, fen, gameId, result: "Opponent disconnected", winner: sender's color}
+- target not ONLINE → sender,target gets { type: DECLARE_RESULT, fen, gameId, result: "Opponent disconnected", winner: target's color}
 - sender in state ONLINE → sender gets { type: REJECT, username, gameId, reason: sender_not_in_game }
-- target in ONLINE state → sender gets { type: DECLARE_RESULT, fen, gameId, result: "Opponent disconnected", winner: sender's color}
+- target in ONLINE state → sender, target gets { type: DECLARE_RESULT, fen, gameId, result: "Opponent disconnected", winner: target's color}
 - No such game request → sender gets { type: REJECT, username, gameId, reason: no_game_request } 
 - internal error → sender gets { type: INTERNAL_ERROR, username, gameId }
