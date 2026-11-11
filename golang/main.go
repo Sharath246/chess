@@ -12,7 +12,7 @@ import (
 var testingMode bool
 
 var (
-	player_conn_info = make(map[string]*websocket.Conn)
+	player_conn_info = make(map[string]map[string]*websocket.Conn)
 	playerConnMutex  sync.RWMutex
 )
 
@@ -61,6 +61,9 @@ func chessWebsocket(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusUnauthorized, "valid session required")
 		return
 	}
+
+	tabId := r.PathValue("tabId")
+
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 		InsecureSkipVerify: true,
 	})
@@ -71,15 +74,15 @@ func chessWebsocket(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.CloseNow()
 
-	game_connection(username, conn, r.Context())
+	game_connection(username, tabId, conn, r.Context())
 }
 
 // getConn takes a username and returns its current WebSocket connection and
 // a boolean indicating whether that connection is registered.
-func getConn(username string) (*websocket.Conn, bool) {
+func getConn(username string, tabId string) (*websocket.Conn, bool) {
 	playerConnMutex.RLock()
 	defer playerConnMutex.RUnlock()
-	conn, ok := player_conn_info[username]
+	conn, ok := player_conn_info[username][tabId]
 	return conn, ok
 }
 
@@ -93,17 +96,6 @@ func get_player_conn_info(_ string) []string {
 		players = append(players, username)
 	}
 	return players
-}
-
-// mark_online takes an HTTP writer and authenticated request, marks the player online in
-// Redis, and writes the current player list or a JSON error response. It returns no Go value.
-func mark_online(w http.ResponseWriter, r *http.Request) {
-	username, _ := usernameFromRequest(r)
-	if err := transitionPlayerStatus(username, ONLINE); err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "could not mark user online")
-		return
-	}
-	writeJSON(w, http.StatusOK, get_player_conn_info(username))
 }
 
 // get_online takes an HTTP writer and authenticated request, then writes the connected player
@@ -126,9 +118,8 @@ func main() {
 	mux.HandleFunc("POST /register_user", register_user)
 	mux.HandleFunc("POST /login", login_user)
 	mux.HandleFunc("POST /guest_login", guest_login)
-	mux.HandleFunc("POST /post_online", withAuthentication(mark_online))
 	mux.HandleFunc("GET /get_online", withAuthentication(get_online))
-	mux.HandleFunc("GET /play-game", withAuthentication(chessWebsocket))
+	mux.HandleFunc("GET /play-game/{tabId}", withAuthentication(chessWebsocket))
 
 	if err := http.ListenAndServe(":8080", corsMiddleware(mux)); err != nil {
 		log.Fatal("Server error:", err)

@@ -46,7 +46,10 @@ import { addGameRequest, initiateGame, removeGameRequest, removeOutgoingGameRequ
 import { canTransitionPlayerStatus, validateIncomingPlayerMessage, validateOutgoingPlayerMessage } from "../player-state-machine";
 
 function createWebsocketChannel(sessionId) {
-  const socket = new WebSocket(GAME_WEBSOCKET_URL(sessionId));
+  const tabId = sessionStorage.getItem('tabId') || crypto.randomUUID();
+  sessionStorage.setItem('tabId', tabId);
+
+  const socket = new WebSocket(GAME_WEBSOCKET_URL(tabId, sessionId));
 
   const channel = eventChannel((emitter) => {
     socket.onopen = () => emitter({ type: WEBSOCKET_OPEN });

@@ -20,27 +20,31 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func game_connection(username string, conn *websocket.Conn, ctx context.Context) {
+func game_connection(username string, tabId string, conn *websocket.Conn, ctx context.Context) {
 	playerConnMutex.Lock()
-	player_conn_info[username] = conn
+	_, ok := player_conn_info[username]
+	if !ok {
+		player_conn_info[username] = make(map[string]*websocket.Conn)
+	}
+	player_conn_info[username][tabId] = conn
 	playerConnMutex.Unlock()
 	// This cleanup closure takes no arguments, removes this connection only if it is still
 	// the player's current socket, and clears that player's Redis status; it returns nothing.
 	defer func() {
 		playerConnMutex.Lock()
-		isCurrentConnection := player_conn_info[username] == conn
+		isCurrentConnection := player_conn_info[username][tabId] == conn
 		if isCurrentConnection {
 			delete(player_conn_info, username)
 		}
 		playerConnMutex.Unlock()
 
 		if isCurrentConnection {
-			_ = deleteRedisKey(PLAYER_STATUS + username)
+			_ = deleteRedisKey(PLAYER_STATUS_KEY + REDIS_KEY_SEPARATOR + username)
 		}
 	}()
-	defer handle_conn_teardown(conn, username)
+	defer handle_conn_teardown(conn, username, tabId)
 
-	if err := transitionPlayerStatus(username, ONLINE); err != nil {
+	if err := transitionPlayerStatus(username, ONLINE, tabId); err != nil {
 		close_connection(conn)
 		return
 	}
@@ -62,7 +66,7 @@ func game_connection(username string, conn *websocket.Conn, ctx context.Context)
 			continue
 		}
 
-		writeMsg, err := processMessage(ctx, conn, username, readMsg)
+		writeMsg, err := processMessage(ctx, conn, username, readMsg, tabId)
 		if err != nil {
 			writeWSMessage(ctx, conn, err.Error())
 		} else if writeMsg != nil {
@@ -74,31 +78,31 @@ func game_connection(username string, conn *websocket.Conn, ctx context.Context)
 // handle_conn_teardown takes a WebSocket connection and username, awards every active game
 // to the connected opponent, and removes ended game records. It writes result messages and
 // Redis updates and returns no Go value.
-func handle_conn_teardown(conn *websocket.Conn, username string) {
+func handle_conn_teardown(conn *websocket.Conn, username string, tabId string) {
 	playerConnMutex.RLock()
-	isCurrentConnection := player_conn_info[username] == conn
+	isCurrentConnection := player_conn_info[username][tabId] == conn
 	playerConnMutex.RUnlock()
 	if !isCurrentConnection {
 		return
 	}
 
-	gameIDs, err := rdb.SMembers(ctx, PLAYER_GAMES+username).Result()
+	gameIDs, err := rdb.SMembers(ctx, PLAYER_GAMES_KEY+REDIS_KEY_SEPARATOR+username).Result()
 	if err != nil {
 		log.Printf("Could not find active games for %s during disconnect: %v", username, err)
 		return
 	}
 
 	for _, gameID := range gameIDs {
-		gameInfoJSON, err := getRedisKey(GAME_INFO + gameID)
+		gameInfoJSON, err := getRedisKey(GAME_INFO_KEY + REDIS_KEY_SEPARATOR + gameID)
 		if err != nil {
-			_ = rdb.SRem(ctx, PLAYER_GAMES+username, gameID).Err()
+			_ = rdb.SRem(ctx, PLAYER_GAMES_KEY+REDIS_KEY_SEPARATOR+username, gameID).Err()
 			continue
 		}
 
 		var gameInfo GameInfo
 		if err := json.Unmarshal([]byte(gameInfoJSON), &gameInfo); err != nil {
 			log.Printf("Could not read game %s during disconnect: %v", gameID, err)
-			_ = rdb.SRem(ctx, PLAYER_GAMES+username, gameID).Err()
+			_ = rdb.SRem(ctx, PLAYER_GAMES_KEY+REDIS_KEY_SEPARATOR+username, gameID).Err()
 			continue
 		}
 
@@ -108,11 +112,11 @@ func handle_conn_teardown(conn *websocket.Conn, username string) {
 			opponent = gameInfo.WhiteId
 			winnerColor = WHITE
 		} else if username != gameInfo.WhiteId {
-			_ = rdb.SRem(ctx, PLAYER_GAMES+username, gameID).Err()
+			_ = rdb.SRem(ctx, PLAYER_GAMES_KEY+REDIS_KEY_SEPARATOR+username, gameID).Err()
 			continue
 		}
 
-		if opponentConn, ok := getConn(opponent); ok {
+		if opponentConn, ok := getConn(opponent, tabId); ok {
 			result := GameSendMessage{
 				TYPE:   DECLARE_RESULT,
 				GameId: gameID,
@@ -122,11 +126,11 @@ func handle_conn_teardown(conn *websocket.Conn, username string) {
 			if err := writeWSMessage(context.Background(), opponentConn, result); err != nil {
 				log.Printf("Could not notify %s that they won game %s: %v", opponent, gameID, err)
 			}
-			if err := transitionPlayerStatus(opponent, ONLINE); err != nil {
+			if err := transitionPlayerStatus(opponent, ONLINE, tabId); err != nil {
 				log.Printf("Could not update %s status after disconnect: %v", opponent, err)
 			}
 		} else {
-			_ = deleteRedisKey(PLAYER_STATUS + opponent)
+			_ = deleteRedisKey(PLAYER_STATUS_KEY + REDIS_KEY_SEPARATOR + opponent)
 		}
 
 		removeGameRecord(ctx, gameInfo)
@@ -135,8 +139,8 @@ func handle_conn_teardown(conn *websocket.Conn, username string) {
 
 // readyForGame takes a player message, updates that player's Redis status to
 // ready when possible, and returns ACCEPT or REJECT with the player identity.
-func readyForGame(msg PlayerMessage) (any, error) {
-	err := transitionPlayerStatus(msg.Username, READY_FOR_GAME)
+func readyForGame(msg PlayerMessage, tabId string) (any, error) {
+	err := transitionPlayerStatus(msg.Username, READY_FOR_GAME, tabId)
 	if err != nil {
 		return nil, err
 	} else {
@@ -146,20 +150,20 @@ func readyForGame(msg PlayerMessage) (any, error) {
 
 // requestGame takes a context and matchmaking request, forwards the request to the named
 // opponent when both players are ready, and returns the requester-facing protocol response.
-func requestGame(ctx context.Context, msg PlayerMessage) (any, error) {
+func requestGame(ctx context.Context, msg PlayerMessage, tabId string) (any, error) {
 	opponentRequestMessage := PlayerMessage{Username: msg.OpponentUsername, OpponentUsername: msg.Username, TYPE: REQUEST_GAME}
 	message := PlayerMessage{Username: msg.Username, OpponentUsername: msg.OpponentUsername}
-	opponentConn, ok := getConn(message.OpponentUsername)
+	opponentConn, ok := getConn(message.OpponentUsername, tabId)
 	if !ok {
 		message.TYPE = PLAYER_NOT_AVAILABLE
 		return message, nil
 	}
-	opponentState, err := getRedisKey(PLAYER_STATUS + msg.OpponentUsername)
+	opponentState, err := getRedisKey(PLAYER_STATUS_KEY + REDIS_KEY_SEPARATOR + msg.OpponentUsername)
 	if err != nil {
 		return nil, err
 	}
 	if MESSAGE_TYPE(opponentState) == READY_FOR_GAME {
-		err := transitionPlayerStatus(msg.Username, REQUEST_GAME)
+		err := transitionPlayerStatus(msg.Username, REQUEST_GAME, tabId)
 		if err != nil {
 			return nil, err
 		}
@@ -167,7 +171,7 @@ func requestGame(ctx context.Context, msg PlayerMessage) (any, error) {
 		if err != nil {
 			return nil, err
 		} else {
-			err = set_redis_key(string(GAME_REQUEST)+msg.OpponentUsername, msg.Username, 0)
+			err = set_redis_key(GAME_REQUEST_KEY+REDIS_KEY_SEPARATOR+msg.OpponentUsername, msg.Username, 0)
 			if err != nil {
 				return nil, err
 			}
@@ -181,30 +185,30 @@ func requestGame(ctx context.Context, msg PlayerMessage) (any, error) {
 
 // acceptGame takes a context, accepting player's connection, and request message; it pairs
 // the players and notifies both connections. It returns the pairing outcome as a PlayerMessage.
-func acceptGame(ctx context.Context, playerConn *websocket.Conn, msg PlayerMessage) (any, error) {
-	requester, err := getRedisKey(string(GAME_REQUEST) + msg.Username)
+func acceptGame(ctx context.Context, playerConn *websocket.Conn, msg PlayerMessage, tabId string) (any, error) {
+	requester, err := getRedisKey(GAME_REQUEST_KEY + REDIS_KEY_SEPARATOR + msg.Username)
 	if err != nil {
 		return nil, err
 	} else if requester != msg.OpponentUsername {
 		return PlayerMessage{Username: msg.Username, OpponentUsername: msg.OpponentUsername, TYPE: REJECT_GAME_REQUEST}, nil
 	}
-	playerState, _ := getRedisKey(PLAYER_STATUS + msg.Username)
-	opponentState, _ := getRedisKey(PLAYER_STATUS + msg.OpponentUsername)
+	playerState, _ := getRedisKey(PLAYER_STATUS_KEY + REDIS_KEY_SEPARATOR + msg.Username)
+	opponentState, _ := getRedisKey(PLAYER_STATUS_KEY + REDIS_KEY_SEPARATOR + msg.OpponentUsername)
 	if MESSAGE_TYPE(playerState) != READY_FOR_GAME || MESSAGE_TYPE(opponentState) != REQUEST_GAME {
 		return PlayerMessage{Username: msg.Username, OpponentUsername: msg.OpponentUsername, TYPE: REJECT_GAME_REQUEST}, nil
 	}
 	opponentRequestMessage := PlayerMessage{Username: msg.OpponentUsername, OpponentUsername: msg.Username, TYPE: PAIRED}
 	message := PlayerMessage{Username: msg.Username, OpponentUsername: msg.OpponentUsername, TYPE: PAIRED}
-	opponentConn, ok := getConn(msg.OpponentUsername)
+	opponentConn, ok := getConn(msg.OpponentUsername, tabId)
 	if !ok {
 		message.TYPE = PLAYER_NOT_AVAILABLE
 		return message, nil
 	} else {
-		err := transitionPlayerStatus(msg.OpponentUsername, PAIRED)
+		err := transitionPlayerStatus(msg.OpponentUsername, PAIRED, tabId)
 		if err != nil {
 			return nil, err
 		}
-		err = transitionPlayerStatus(msg.Username, PAIRED)
+		err = transitionPlayerStatus(msg.Username, PAIRED, tabId)
 		if err != nil {
 			return nil, err
 		}
@@ -216,13 +220,13 @@ func acceptGame(ctx context.Context, playerConn *websocket.Conn, msg PlayerMessa
 		if playerTwoErr != nil {
 			return nil, err
 		}
-		err = deleteRedisKey(string(GAME_REQUEST) + msg.Username)
+		err = deleteRedisKey(GAME_REQUEST_KEY + REDIS_KEY_SEPARATOR + msg.Username)
 		if err != nil {
 			return nil, err
 		}
 		player1Info := PlayerInfo{Username: message.Username, Conn: playerConn}
 		player2Info := PlayerInfo{Username: message.OpponentUsername, Conn: opponentConn}
-		err = startGame(ctx, player1Info, player2Info)
+		err = startGame(ctx, player1Info, player2Info, tabId)
 		if err != nil {
 			return nil, err
 		}
@@ -232,8 +236,8 @@ func acceptGame(ctx context.Context, playerConn *websocket.Conn, msg PlayerMessa
 
 // declineGame takes a context and rejection message, notifies the requester, resets their
 // matchmaking state when possible, and returns the resulting PlayerMessage.
-func declineGame(ctx context.Context, msg PlayerMessage) (any, error) {
-	requester, err := getRedisKey(string(GAME_REQUEST) + msg.Username)
+func declineGame(ctx context.Context, msg PlayerMessage, tabId string) (any, error) {
+	requester, err := getRedisKey(GAME_REQUEST_KEY + REDIS_KEY_SEPARATOR + msg.Username)
 	if err != nil {
 		return nil, err
 	}
@@ -242,12 +246,12 @@ func declineGame(ctx context.Context, msg PlayerMessage) (any, error) {
 	}
 	opponentRequestMessage := PlayerMessage{Username: msg.OpponentUsername, OpponentUsername: msg.Username, TYPE: REJECT_GAME_REQUEST}
 	message := PlayerMessage{Username: msg.Username, OpponentUsername: msg.OpponentUsername}
-	opponentConn, ok := getConn(msg.OpponentUsername)
+	opponentConn, ok := getConn(msg.OpponentUsername, tabId)
 	if !ok {
 		message.TYPE = PLAYER_NOT_AVAILABLE
 		return message, nil
 	}
-	opponentState, err := getRedisKey(PLAYER_STATUS + msg.OpponentUsername)
+	opponentState, err := getRedisKey(PLAYER_STATUS_KEY + REDIS_KEY_SEPARATOR + msg.OpponentUsername)
 	if err != nil {
 		return nil, err
 	} else if MESSAGE_TYPE(opponentState) == REQUEST_GAME {
@@ -255,11 +259,11 @@ func declineGame(ctx context.Context, msg PlayerMessage) (any, error) {
 		if err != nil {
 			return nil, err
 		} else {
-			err = deleteRedisKey(string(GAME_REQUEST) + msg.Username)
+			err = deleteRedisKey(GAME_REQUEST_KEY + REDIS_KEY_SEPARATOR + msg.Username)
 			if err != nil {
 				return nil, err
 			}
-			err = transitionPlayerStatus(msg.OpponentUsername, READY_FOR_GAME)
+			err = transitionPlayerStatus(msg.OpponentUsername, READY_FOR_GAME, tabId)
 			if err != nil {
 				return nil, err
 			}
@@ -283,7 +287,7 @@ func assignColor(player1, player2 PlayerInfo) (PlayerInfo, PlayerInfo) {
 
 // startGame takes a context and two usernames, creates and stores a game when both players
 // are paired, and sends each player's start message. It returns the white and black usernames.
-func startGame(ctx context.Context, player1, player2 PlayerInfo) error {
+func startGame(ctx context.Context, player1, player2 PlayerInfo, tabId string) error {
 	white, black := assignColor(player1, player2)
 	gameID := uuid.NewString()
 	fen := chess.NewGame().FEN()
@@ -299,19 +303,19 @@ func startGame(ctx context.Context, player1, player2 PlayerInfo) error {
 	if err != nil {
 		return err
 	}
-	if err := set_redis_key(GAME_INFO+gameID, string(gameInfoJSON), 0); err != nil {
+	if err := set_redis_key(GAME_INFO_KEY+REDIS_KEY_SEPARATOR+gameID, string(gameInfoJSON), 0); err != nil {
 		return err
 	}
-	if err := rdb.SAdd(ctx, PLAYER_GAMES+white.Username, gameID).Err(); err != nil {
+	if err := rdb.SAdd(ctx, PLAYER_GAMES_KEY+REDIS_KEY_SEPARATOR+white.Username, gameID).Err(); err != nil {
 		return err
 	}
-	if err := rdb.SAdd(ctx, PLAYER_GAMES+black.Username, gameID).Err(); err != nil {
+	if err := rdb.SAdd(ctx, PLAYER_GAMES_KEY+REDIS_KEY_SEPARATOR+black.Username, gameID).Err(); err != nil {
 		return err
 	}
-	if err := transitionPlayerStatus(white.Username, PLAYING_GAME); err != nil {
+	if err := transitionPlayerStatus(white.Username, PLAYING_GAME, tabId); err != nil {
 		return err
 	}
-	if err := transitionPlayerStatus(black.Username, PLAYING_GAME); err != nil {
+	if err := transitionPlayerStatus(black.Username, PLAYING_GAME, tabId); err != nil {
 		return err
 	}
 	whiteGameMessage := GameSendMessage{TYPE: START_GAME, FEN: fen, GameId: gameID, Color: WHITE}
@@ -333,7 +337,7 @@ func getGame(gameID string) (*chess.Game, GameInfo, error) {
 	activeGamesMutex.RLock()
 	game, ok := activeGames[gameID]
 	activeGamesMutex.RUnlock()
-	value, err := getRedisKey(GAME_INFO + gameID)
+	value, err := getRedisKey(GAME_INFO_KEY + REDIS_KEY_SEPARATOR + gameID)
 	if err != nil {
 		return nil, GameInfo{}, err
 	}
@@ -361,9 +365,9 @@ func getGame(gameID string) (*chess.Game, GameInfo, error) {
 // removeGameRecord takes a context and game metadata, deletes the game from Redis player
 // indexes and the in-process game map, and returns no value.
 func removeGameRecord(ctx context.Context, gameInfo GameInfo) {
-	_ = deleteRedisKey(GAME_INFO + gameInfo.GameId)
-	_ = rdb.SRem(ctx, PLAYER_GAMES+gameInfo.WhiteId, gameInfo.GameId).Err()
-	_ = rdb.SRem(ctx, PLAYER_GAMES+gameInfo.BlackId, gameInfo.GameId).Err()
+	_ = deleteRedisKey(GAME_INFO_KEY + REDIS_KEY_SEPARATOR + gameInfo.GameId)
+	_ = rdb.SRem(ctx, PLAYER_GAMES_KEY+REDIS_KEY_SEPARATOR+gameInfo.WhiteId, gameInfo.GameId).Err()
+	_ = rdb.SRem(ctx, PLAYER_GAMES_KEY+REDIS_KEY_SEPARATOR+gameInfo.BlackId, gameInfo.GameId).Err()
 
 	activeGamesMutex.Lock()
 	delete(activeGames, gameInfo.GameId)
@@ -396,7 +400,7 @@ func checkTime(msg GameReceiveMessage, gameInfo GameInfo, turn chess.Color) (boo
 // checkMove takes a context, game state and metadata, move message, and both player
 // connections. It validates time, player turn, and move legality; it broadcasts the new state
 // or result and returns success plus the protocol result type.
-func checkMove(ctx context.Context, game *chess.Game, gameInfo GameInfo, msg GameReceiveMessage, whiteConn *websocket.Conn, blackConn *websocket.Conn) (bool, MESSAGE_TYPE) {
+func checkMove(ctx context.Context, game *chess.Game, gameInfo GameInfo, msg GameReceiveMessage, whiteConn *websocket.Conn, blackConn *websocket.Conn, tabId string) (bool, MESSAGE_TYPE) {
 	turn := chess.Black
 	if gameInfo.WhiteId == msg.Username {
 		turn = chess.White
@@ -433,10 +437,10 @@ func checkMove(ctx context.Context, game *chess.Game, gameInfo GameInfo, msg Gam
 		}
 		_ = writeWSMessage(ctx, whiteConn, completionMessage)
 		_ = writeWSMessage(ctx, blackConn, completionMessage)
-		if err := transitionPlayerStatus(gameInfo.WhiteId, ONLINE); err != nil {
+		if err := transitionPlayerStatus(gameInfo.WhiteId, ONLINE, tabId); err != nil {
 			log.Printf("Could not update white player status after game completion: %v", err)
 		}
-		if err := transitionPlayerStatus(gameInfo.BlackId, ONLINE); err != nil {
+		if err := transitionPlayerStatus(gameInfo.BlackId, ONLINE, tabId); err != nil {
 			log.Printf("Could not update black player status after game completion: %v", err)
 		}
 		removeGameRecord(ctx, gameInfo)
@@ -451,17 +455,17 @@ func checkMove(ctx context.Context, game *chess.Game, gameInfo GameInfo, msg Gam
 // makeMove takes a context and move message, retrieves the game and player connections,
 // and delegates validation and broadcasting. It returns a response message or nil when the
 // completion result was already broadcast.
-func makeMove(ctx context.Context, msg GameReceiveMessage) (any, error) {
+func makeMove(ctx context.Context, msg GameReceiveMessage, tabId string) (any, error) {
 	game, gameInfo, err := getGame(msg.GameId)
 	if err != nil {
 		return nil, err
 	}
-	blackConn, blackOK := getConn(gameInfo.BlackId)
-	whiteConn, whiteOK := getConn(gameInfo.WhiteId)
+	blackConn, blackOK := getConn(gameInfo.BlackId, tabId)
+	whiteConn, whiteOK := getConn(gameInfo.WhiteId, tabId)
 	if !blackOK || !whiteOK {
 		return nil, fmt.Errorf("Internal Error while retreiving the game info.")
 	}
-	valid, resultType := checkMove(ctx, game, gameInfo, msg, whiteConn, blackConn)
+	valid, resultType := checkMove(ctx, game, gameInfo, msg, whiteConn, blackConn, tabId)
 	if !valid {
 		if resultType == TIME_MISMATCH {
 			return GameSendMessage{TYPE: resultType, GameId: msg.GameId, BlackTime: gameInfo.BlackTime, WhiteTime: gameInfo.WhiteTime}, nil
@@ -476,7 +480,7 @@ func makeMove(ctx context.Context, msg GameReceiveMessage) (any, error) {
 
 // offerDraw takes a context and draw-offer message, validates the game participant, stores
 // the pending offer, and notifies the opponent. It returns an acceptance or rejection message.
-func offerDraw(ctx context.Context, msg GameReceiveMessage) (any, error) {
+func offerDraw(ctx context.Context, msg GameReceiveMessage, tabId string) (any, error) {
 	_, gameInfo, err := getGame(msg.GameId)
 	if err != nil {
 		return nil, err
@@ -488,15 +492,15 @@ func offerDraw(ctx context.Context, msg GameReceiveMessage) (any, error) {
 	if opponent == msg.Username {
 		opponent = gameInfo.BlackId
 	}
-	opponentConn, ok := getConn(opponent)
+	opponentConn, ok := getConn(opponent, tabId)
 	if !ok {
 		return GameSendMessage{TYPE: REJECT, GameId: msg.GameId}, nil
 	}
-	if err := set_redis_key(string(DRAW_REQUEST)+opponent, msg.Username, 0); err != nil {
+	if err := set_redis_key(DRAW_REQUEST_KEY+REDIS_KEY_SEPARATOR+opponent, msg.Username, 0); err != nil {
 		return nil, err
 	}
 	if err := writeWSMessage(ctx, opponentConn, GameSendMessage{TYPE: OFFER_DRAW, GameId: msg.GameId}); err != nil {
-		_ = deleteRedisKey(string(DRAW_REQUEST) + opponent)
+		_ = deleteRedisKey(DRAW_REQUEST_KEY + REDIS_KEY_SEPARATOR + opponent)
 		return nil, err
 	}
 	return GameSendMessage{TYPE: ACCEPT, GameId: msg.GameId}, nil
@@ -504,7 +508,7 @@ func offerDraw(ctx context.Context, msg GameReceiveMessage) (any, error) {
 
 // resignGame takes a context and resignation message, verifies the player and game, notifies
 // the opponent of the winning color, ends the game, and returns the result message.
-func resignGame(ctx context.Context, msg GameReceiveMessage) (any, error) {
+func resignGame(ctx context.Context, msg GameReceiveMessage, tabId string) (any, error) {
 	_, gameInfo, err := getGame(msg.GameId)
 	if err != nil {
 		return nil, err
@@ -516,7 +520,7 @@ func resignGame(ctx context.Context, msg GameReceiveMessage) (any, error) {
 	if opponent == msg.Username {
 		opponent = gameInfo.BlackId
 	}
-	opponentConn, ok := getConn(opponent)
+	opponentConn, ok := getConn(opponent, tabId)
 	if !ok {
 		return nil, fmt.Errorf("Internal Error")
 	}
@@ -527,10 +531,10 @@ func resignGame(ctx context.Context, msg GameReceiveMessage) (any, error) {
 	if err := writeWSMessage(ctx, opponentConn, GameSendMessage{TYPE: RESIGN_GAME, GameId: msg.GameId, Winner: winnerColor}); err != nil {
 		return nil, err
 	}
-	if err := transitionPlayerStatus(msg.Username, ONLINE); err != nil {
+	if err := transitionPlayerStatus(msg.Username, ONLINE, tabId); err != nil {
 		return nil, fmt.Errorf("Could not update resigning player status: %v", err)
 	}
-	if err := transitionPlayerStatus(opponent, ONLINE); err != nil {
+	if err := transitionPlayerStatus(opponent, ONLINE, tabId); err != nil {
 		return nil, fmt.Errorf("Could not update opponent status after resignation: %v", err)
 	}
 	removeGameRecord(ctx, gameInfo)
@@ -539,8 +543,8 @@ func resignGame(ctx context.Context, msg GameReceiveMessage) (any, error) {
 
 // acceptDraw takes a context and draw-response message, notifies the offerer, marks both
 // players available, removes the ended game, and returns the draw result or rejection.
-func acceptDraw(ctx context.Context, msg GameReceiveMessage) (any, error) {
-	requester, err := getRedisKey(string(DRAW_REQUEST) + msg.Username)
+func acceptDraw(ctx context.Context, msg GameReceiveMessage, tabId string) (any, error) {
+	requester, err := getRedisKey(DRAW_REQUEST_KEY + REDIS_KEY_SEPARATOR + msg.Username)
 	if err != nil {
 		return nil, err
 	}
@@ -548,18 +552,18 @@ func acceptDraw(ctx context.Context, msg GameReceiveMessage) (any, error) {
 	if err != nil || (msg.Username != gameInfo.WhiteId && msg.Username != gameInfo.BlackId) {
 		return nil, fmt.Errorf("Not Authorized for this action")
 	}
-	opponentConn, ok := getConn(requester)
+	opponentConn, ok := getConn(requester, tabId)
 	if !ok {
 		return nil, fmt.Errorf("Internal Error")
 	}
 	if err := writeWSMessage(ctx, opponentConn, GameSendMessage{TYPE: ACCEPT_DRAW_REQUEST, GameId: msg.GameId}); err != nil {
 		return nil, err
 	}
-	_ = deleteRedisKey(string(DRAW_REQUEST) + msg.Username)
-	if err := transitionPlayerStatus(msg.Username, ONLINE); err != nil {
+	_ = deleteRedisKey(DRAW_REQUEST_KEY + REDIS_KEY_SEPARATOR + msg.Username)
+	if err := transitionPlayerStatus(msg.Username, ONLINE, tabId); err != nil {
 		return nil, fmt.Errorf("Could not update accepting player's status after draw: %v", err)
 	}
-	if err := transitionPlayerStatus(requester, ONLINE); err != nil {
+	if err := transitionPlayerStatus(requester, ONLINE, tabId); err != nil {
 		return nil, fmt.Errorf("Could not update offering player's status after draw: %v", err)
 	}
 	removeGameRecord(ctx, gameInfo)
@@ -568,19 +572,19 @@ func acceptDraw(ctx context.Context, msg GameReceiveMessage) (any, error) {
 
 // rejectDraw takes a context and draw-response message, notifies the offerer, clears the
 // pending request, and returns the draw-rejection message.
-func rejectDraw(ctx context.Context, msg GameReceiveMessage) (any, error) {
-	requester, err := getRedisKey(string(DRAW_REQUEST) + msg.Username)
+func rejectDraw(ctx context.Context, msg GameReceiveMessage, tabId string) (any, error) {
+	requester, err := getRedisKey(DRAW_REQUEST_KEY + REDIS_KEY_SEPARATOR + msg.Username)
 	if err != nil {
 		return nil, err
 	}
-	opponentConn, ok := getConn(requester)
+	opponentConn, ok := getConn(requester, tabId)
 	if !ok {
 		return nil, fmt.Errorf("Internal Error")
 	}
 	if err := writeWSMessage(ctx, opponentConn, GameSendMessage{TYPE: REJECT_DRAW_REQUEST, GameId: msg.GameId}); err != nil {
 		return nil, err
 	}
-	_ = deleteRedisKey(string(DRAW_REQUEST) + msg.Username)
+	_ = deleteRedisKey(DRAW_REQUEST_KEY + REDIS_KEY_SEPARATOR + msg.Username)
 	return GameSendMessage{TYPE: ACCEPT, GameId: msg.GameId}, nil
 }
 
@@ -603,10 +607,10 @@ func canTransition(from, to MESSAGE_TYPE) bool {
 	}
 }
 
-// transitionPlayerStatus takes a username and requested status, validates the current Redis
+// transitionPlayerStatus( takes a username and requested status, validates the current Redis, tabId)
 // status against canTransition function, and stores the new status. It returns a Redis or transition error.
-func transitionPlayerStatus(username string, requestedStatus MESSAGE_TYPE) error {
-	currentValue, err := getRedisKey(PLAYER_STATUS + username)
+func transitionPlayerStatus(username string, requestedStatus MESSAGE_TYPE, tabId string) error {
+	currentValue, err := getRedisKey(PLAYER_STATUS_KEY + REDIS_KEY_SEPARATOR + username)
 	if err != nil && !errors.Is(err, redis.Nil) {
 		return err
 	}
@@ -615,7 +619,7 @@ func transitionPlayerStatus(username string, requestedStatus MESSAGE_TYPE) error
 		return &game_error{error_code: ALREADY_IN_STATE}
 	}
 	if canTransition(currentStatus, requestedStatus) {
-		err := set_redis_key(PLAYER_STATUS+username, string(requestedStatus), 0)
+		err := set_redis_key(PLAYER_STATUS_KEY+REDIS_KEY_SEPARATOR+username, string(requestedStatus), 0)
 		if err != nil {
 			log.Printf("Error while setting redis key %q", err.Error())
 			return &game_error{error_code: INTERNAL_SERVER_ERROR}

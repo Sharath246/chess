@@ -16,8 +16,8 @@ var activeGamesMutex sync.RWMutex
 // processMessage takes a context, sender connection and username, and a decoded protocol
 // message. It dispatches the corresponding matchmaking or game action and returns a response
 // message, or nil when the action has already broadcast its result.
-func processMessage(ctx context.Context, conn *websocket.Conn, username string, msg any) (any, error) {
-	state, err := getRedisKey(PLAYER_STATUS + username)
+func processMessage(ctx context.Context, conn *websocket.Conn, username string, msg any, tabId string) (any, error) {
+	state, err := getRedisKey(PLAYER_STATUS_KEY + REDIS_KEY_SEPARATOR + username + tabId)
 	if err != nil {
 		return nil, err
 	}
@@ -29,14 +29,14 @@ func processMessage(ctx context.Context, conn *websocket.Conn, username string, 
 		message.Username = username
 		switch message.TYPE {
 		case READY_FOR_GAME:
-			return readyForGame(message)
+			return readyForGame(message, tabId)
 		case REQUEST_GAME:
-			return requestGame(ctx, message)
+			return requestGame(ctx, message, tabId)
 		case ACCEPT_GAME_REQUEST:
-			response, err := acceptGame(ctx, conn, message)
+			response, err := acceptGame(ctx, conn, message, tabId)
 			return response, err
 		case REJECT_GAME_REQUEST:
-			return declineGame(ctx, message)
+			return declineGame(ctx, message, tabId)
 		default:
 			return PlayerMessage{Username: message.Username, TYPE: REJECT}, nil
 		}
@@ -44,15 +44,15 @@ func processMessage(ctx context.Context, conn *websocket.Conn, username string, 
 		message.Username = username
 		switch message.TYPE {
 		case MAKE_MOVE:
-			return makeMove(ctx, message)
+			return makeMove(ctx, message, tabId)
 		case OFFER_DRAW:
-			return offerDraw(ctx, message)
+			return offerDraw(ctx, message, tabId)
 		case RESIGN_GAME:
-			return resignGame(ctx, message)
+			return resignGame(ctx, message, tabId)
 		case ACCEPT_DRAW_REQUEST:
-			return acceptDraw(ctx, message)
+			return acceptDraw(ctx, message, tabId)
 		case REJECT_DRAW_REQUEST:
-			return rejectDraw(ctx, message)
+			return rejectDraw(ctx, message, tabId)
 		default:
 			return GameSendMessage{TYPE: REJECT, GameId: message.GameId}, nil
 		}
